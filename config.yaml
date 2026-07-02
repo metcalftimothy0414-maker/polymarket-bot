@@ -19,6 +19,30 @@ feeds:
     base_url: "https://api.the-odds-api.com"
     regions: "us"
 
+strategies:
+  divergence:
+    enabled: true
+    entry_threshold_cents: 4.0
+    fill_timeout_seconds: 60
+  sportsbook_divergence:
+    enabled: true
+    entry_threshold_cents: 4.0
+    fill_timeout_seconds: 60
+  sports_momentum:
+    enabled: true
+    momentum_lookback_seconds: 120
+    momentum_threshold_cents: 3
+    exit_reversal_cents: 4
+    max_spread_cents: 3
+    min_implied_prob: 0.40
+    max_implied_prob: 0.60
+    min_depth_usd: 500
+    fill_timeout_seconds: 10
+
+position_notional_usd: 10
+max_concurrent_positions: 5     # global, across strategies
+daily_sim_loss_stop_usd: 50     # per strategy — one dying doesn't halt the other
+
 log:
   level: INFO
   file: "data/bot.log"

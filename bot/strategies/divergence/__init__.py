@@ -57,7 +57,7 @@ class DivergenceStrategy:
         for pair_id, pm_slug, k_ticker in pairs:
             pm_book = self.state.polymarket_book(pm_slug)
             k_book = self.state.kalshi.get(k_ticker)
-            existing = find_open_opportunity(self.conn, self.strategy_id, pair_id)
+            existing = find_open_opportunity(self.conn, self.strategy_id, pm_slug)
 
             if not pm_book or not k_book:
                 continue

@@ -42,10 +42,44 @@ class LogConfig(BaseModel):
     file: str = "data/bot.log"
 
 
+class DivergenceStrategyConfig(BaseModel):
+    enabled: bool = True
+    entry_threshold_cents: float = 4.0
+    fill_timeout_seconds: int = 60
+
+
+class SportsbookDivergenceStrategyConfig(BaseModel):
+    enabled: bool = True
+    entry_threshold_cents: float = 4.0
+    fill_timeout_seconds: int = 60
+
+
+class SportsMomentumStrategyConfig(BaseModel):
+    enabled: bool = True
+    momentum_lookback_seconds: float = 120
+    momentum_threshold_cents: float = 3
+    exit_reversal_cents: float = 4
+    max_spread_cents: float = 3
+    min_implied_prob: float = 0.40
+    max_implied_prob: float = 0.60
+    min_depth_usd: float = 500
+    fill_timeout_seconds: int = 10
+
+
+class StrategiesConfig(BaseModel):
+    divergence: DivergenceStrategyConfig
+    sportsbook_divergence: SportsbookDivergenceStrategyConfig
+    sports_momentum: SportsMomentumStrategyConfig
+
+
 class Settings(BaseModel):
     data_collection_enabled: bool = False
     feeds: FeedsConfig
+    strategies: StrategiesConfig
     log: LogConfig
+    position_notional_usd: float = 10
+    max_concurrent_positions: int = 5
+    daily_sim_loss_stop_usd: float = 50
     polymarket_api_key_id: str
     polymarket_private_key: str
     odds_api_key: str

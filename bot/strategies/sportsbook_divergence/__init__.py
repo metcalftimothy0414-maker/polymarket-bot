@@ -52,7 +52,7 @@ class SportsbookDivergenceStrategy:
         for pair_id, pm_slug, game_id, long_team in pairs:
             pm_book = self.state.polymarket_book(pm_slug)
             game = self.state.odds_api.get(game_id)
-            existing = find_open_opportunity(self.conn, self.strategy_id, pair_id)
+            existing = find_open_opportunity(self.conn, self.strategy_id, pm_slug)
 
             if not pm_book or not game:
                 continue

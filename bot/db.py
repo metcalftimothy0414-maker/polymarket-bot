@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS markets (
     question TEXT,
     category TEXT,
     end_date TEXT,
+    game_start_time TEXT,
     active INTEGER,
     closed INTEGER,
     raw_json TEXT,
@@ -80,7 +81,22 @@ CREATE TABLE IF NOT EXISTS opportunities (
     last_seen_at TEXT NOT NULL,
     closed_at TEXT,
     persistence_seconds REAL,
-    status TEXT NOT NULL DEFAULT 'open'
+    status TEXT NOT NULL DEFAULT 'open',
+    counterfactual_60s REAL,
+    counterfactual_300s REAL
+);
+
+CREATE TABLE IF NOT EXISTS candidates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    strategy_id TEXT NOT NULL,
+    market_ref TEXT NOT NULL,
+    ts TEXT NOT NULL,
+    implied_prob REAL,
+    momentum_value REAL,
+    spread_cents REAL,
+    depth_usd REAL,
+    seconds_remaining REAL,
+    traded INTEGER NOT NULL DEFAULT 0
 );
 """
 

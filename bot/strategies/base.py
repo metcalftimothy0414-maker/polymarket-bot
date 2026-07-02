@@ -12,16 +12,16 @@ def hash_params(params: dict) -> str:
     return hashlib.sha256(json.dumps(params, sort_keys=True).encode()).hexdigest()[:12]
 
 
-def find_open_opportunity(conn: sqlite3.Connection, strategy_id: str, pair_id: int) -> sqlite3.Row | None:
+def find_open_opportunity(conn: sqlite3.Connection, strategy_id: str, market_ref: str) -> sqlite3.Row | None:
     conn.row_factory = sqlite3.Row
     return conn.execute(
-        "SELECT * FROM opportunities WHERE pair_id = ? AND strategy_id = ? AND status = 'open'",
-        (pair_id, strategy_id),
+        "SELECT * FROM opportunities WHERE market_ref = ? AND strategy_id = ? AND status = 'open'",
+        (market_ref, strategy_id),
     ).fetchone()
 
 
 def insert_opportunity(
-    conn: sqlite3.Connection, strategy_id: str, params_hash: str, pair_id: int, market_ref: str,
+    conn: sqlite3.Connection, strategy_id: str, params_hash: str, pair_id: int | None, market_ref: str,
     direction: str, signal_value: float, entry_price: float, top_levels: dict, now: str,
     extra: dict | None = None,
 ) -> None:
