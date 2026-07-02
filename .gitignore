@@ -6,3 +6,4 @@ venv/
 data/*.db
 data/*.db-journal
 *.log
+.claude/
