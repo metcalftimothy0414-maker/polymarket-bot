@@ -9,6 +9,8 @@ feeds:
     max_markets_per_connection: 100
     rest_rate_limit_per_sec: 20
     discovery_refresh_seconds: 3600
+    transport: "ws"              # "rest_poll" is a fallback for networks that block WS auth
+    rest_poll_seconds: 3.0
   kalshi:
     enabled: true
     poll_seconds: 15
