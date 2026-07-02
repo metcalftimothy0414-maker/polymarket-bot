@@ -12,6 +12,7 @@ from bot.feeds.auth import PolymarketAuth
 from bot.feeds.polymarket import PolymarketRestClient, PolymarketWSClient
 from bot.logging_conf import setup_logging
 from bot.matching.cli import odds_pairs_review, odds_pairs_scan, pairs_review, pairs_scan
+from bot.report import export_csv, print_report
 from bot.runner import run as run_bot
 
 logger = logging.getLogger(__name__)
@@ -110,6 +111,11 @@ def main() -> None:
 
     sub.add_parser("run", help="Run the live scan/paper-trade loop (gated by data_collection_enabled)")
 
+    sub.add_parser("report", help="Print per-strategy metrics, kill criteria, and a side-by-side comparison")
+
+    export = sub.add_parser("export", help="Dump the paper trade log as CSV")
+    export.add_argument("--out", default="paper_trades.csv")
+
     args = parser.parse_args()
     try:
         if args.command == "run":
@@ -142,6 +148,14 @@ def main() -> None:
             setup_logging(settings.log.level, settings.log.file)
             conn = db.connect()
             odds_pairs_review(conn)
+        elif args.command == "report":
+            conn = db.connect()
+            print_report(conn)
+        elif args.command == "export":
+            conn = db.connect()
+            count = export_csv(conn, args.out)
+            if count:
+                print(f"Exported {count} paper trade rows to {args.out}")
     except SystemExit:
         raise
     except Exception as exc:
