@@ -46,6 +46,24 @@ CREATE TABLE IF NOT EXISTS pairs (
     reviewed_at TEXT,
     UNIQUE(polymarket_slug, kalshi_ticker)
 );
+
+CREATE TABLE IF NOT EXISTS opportunities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    strategy_id TEXT NOT NULL,
+    params_hash TEXT NOT NULL,
+    pair_id INTEGER,
+    market_ref TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    signal_value REAL NOT NULL,
+    entry_price REAL NOT NULL,
+    top_levels_json TEXT,
+    extra_json TEXT,
+    detected_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    closed_at TEXT,
+    persistence_seconds REAL,
+    status TEXT NOT NULL DEFAULT 'open'
+);
 """
 
 
