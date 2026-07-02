@@ -151,6 +151,12 @@ class TestResolutionExtraction(unittest.TestCase):
         market = {"closed": True, "marketSides": [{"long": False, "price": "0"}]}
         self.assertIsNone(extract_resolution_outcome(market))
 
+    def test_none_when_price_key_missing_entirely(self):
+        # Found against real live data: some genuinely-closed Polymarket markets
+        # have a long side with no "price" key at all, not just an empty one.
+        market = {"closed": True, "marketSides": [{"long": True}]}
+        self.assertIsNone(extract_resolution_outcome(market))
+
 
 class FakeRestClient:
     def __init__(self, closed_markets):

@@ -201,7 +201,7 @@ def extract_resolution_outcome(market_json: dict) -> float | None:
     for side in market_json.get("marketSides", []):
         if side.get("long"):
             try:
-                return float(side["price"])
+                return float(side.get("price"))
             except (TypeError, ValueError):
                 return None
     return None
