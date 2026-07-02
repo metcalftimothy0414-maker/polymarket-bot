@@ -16,3 +16,8 @@ def setup_logging(level: str, file_path: str) -> None:
     console_handler.setFormatter(formatter)
 
     logging.basicConfig(level=level, handlers=[file_handler, console_handler])
+
+    # httpx/httpcore log full request URLs at INFO, including query-string
+    # secrets like The Odds API's apiKey param — never let those into logs.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
