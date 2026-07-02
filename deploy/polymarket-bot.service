@@ -1,0 +1,16 @@
+[Unit]
+Description=Polymarket paper-trading bot (Phase 1 - no live orders)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=polymarket-bot
+WorkingDirectory=/opt/polymarket-bot
+EnvironmentFile=/opt/polymarket-bot/.env
+ExecStart=/opt/polymarket-bot/.venv/bin/python -m bot.cli run
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
