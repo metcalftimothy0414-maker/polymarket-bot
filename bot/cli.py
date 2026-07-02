@@ -116,6 +116,11 @@ def main() -> None:
     export = sub.add_parser("export", help="Dump the paper trade log as CSV")
     export.add_argument("--out", default="paper_trades.csv")
 
+    dash = sub.add_parser("dashboard", help="Serve the live localhost dashboard")
+    dash.add_argument("--host", default="0.0.0.0")
+    dash.add_argument("--port", type=int, default=8000)
+    dash.add_argument("--ngrok", action="store_true", help="Also open an ngrok tunnel for remote access (requires an ngrok authtoken already configured)")
+
     args = parser.parse_args()
     try:
         if args.command == "run":
@@ -156,6 +161,13 @@ def main() -> None:
             count = export_csv(conn, args.out)
             if count:
                 print(f"Exported {count} paper trade rows to {args.out}")
+        elif args.command == "dashboard":
+            import uvicorn
+            if args.ngrok:
+                from pyngrok import ngrok
+                public_url = ngrok.connect(args.port, "http")
+                print(f"ngrok tunnel: {public_url}")
+            uvicorn.run("bot.dashboard:app", host=args.host, port=args.port)
     except SystemExit:
         raise
     except Exception as exc:

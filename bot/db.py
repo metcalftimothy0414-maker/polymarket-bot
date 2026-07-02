@@ -119,6 +119,18 @@ CREATE TABLE IF NOT EXISTS paper_trades (
     filled_at TEXT,
     closed_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS market_snapshots (
+    strategy_id TEXT NOT NULL,
+    pair_key TEXT NOT NULL,
+    label TEXT,
+    polymarket_price REAL,
+    other_venue_price REAL,
+    divergence_cents REAL,
+    entry_threshold_cents REAL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (strategy_id, pair_key)
+);
 """
 
 

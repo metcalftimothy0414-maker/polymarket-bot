@@ -18,6 +18,7 @@ from bot.strategies.base import (
     hash_params,
     insert_opportunity,
     touch_opportunity,
+    upsert_market_snapshot,
 )
 from bot.timeutil import now_iso
 
@@ -51,10 +52,10 @@ class DivergenceStrategy:
         detected: list[Opportunity] = []
 
         pairs = self.conn.execute(
-            "SELECT id, polymarket_slug, kalshi_ticker FROM pairs WHERE verified = 1"
+            "SELECT id, polymarket_slug, kalshi_ticker, polymarket_question FROM pairs WHERE verified = 1"
         ).fetchall()
 
-        for pair_id, pm_slug, k_ticker in pairs:
+        for pair_id, pm_slug, k_ticker, label in pairs:
             pm_book = self.state.polymarket_book(pm_slug)
             k_book = self.state.kalshi.get(k_ticker)
             existing = find_open_opportunity(self.conn, self.strategy_id, pm_slug)
@@ -75,6 +76,11 @@ class DivergenceStrategy:
             # Executable divergence: what we could actually fill at, fee-adjusted.
             buy_edge = k_mid - pm_ask - taker_fee(pm_ask)
             sell_edge = pm_bid - k_mid - taker_fee(pm_bid)
+
+            upsert_market_snapshot(
+                self.conn, self.strategy_id, str(pair_id), label, (pm_bid + pm_ask) / 2, k_mid,
+                max(buy_edge, sell_edge) * 100, self.entry_threshold_cents, now,
+            )
 
             direction, signal_value, entry_price = None, 0.0, None
             threshold = self.entry_threshold_cents / 100

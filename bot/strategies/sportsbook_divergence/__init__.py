@@ -13,6 +13,7 @@ from bot.strategies.base import (
     hash_params,
     insert_opportunity,
     touch_opportunity,
+    upsert_market_snapshot,
 )
 from bot.timeutil import now_iso
 
@@ -46,10 +47,11 @@ class SportsbookDivergenceStrategy:
         detected: list[Opportunity] = []
 
         pairs = self.conn.execute(
-            "SELECT id, polymarket_slug, odds_api_game_id, long_team FROM odds_pairs WHERE verified = 1"
+            "SELECT id, polymarket_slug, odds_api_game_id, long_team, polymarket_question "
+            "FROM odds_pairs WHERE verified = 1"
         ).fetchall()
 
-        for pair_id, pm_slug, game_id, long_team in pairs:
+        for pair_id, pm_slug, game_id, long_team, label in pairs:
             pm_book = self.state.polymarket_book(pm_slug)
             game = self.state.odds_api.get(game_id)
             existing = find_open_opportunity(self.conn, self.strategy_id, pm_slug)
@@ -68,6 +70,11 @@ class SportsbookDivergenceStrategy:
 
             buy_edge = consensus_prob - pm_ask - taker_fee(pm_ask)
             sell_edge = pm_bid - consensus_prob - taker_fee(pm_bid)
+
+            upsert_market_snapshot(
+                self.conn, self.strategy_id, str(pair_id), label, (pm_bid + pm_ask) / 2, consensus_prob,
+                max(buy_edge, sell_edge) * 100, self.entry_threshold_cents, now,
+            )
 
             direction, signal_value, entry_price = None, 0.0, None
             threshold = self.entry_threshold_cents / 100

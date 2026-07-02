@@ -40,6 +40,27 @@ def touch_opportunity(conn: sqlite3.Connection, opp_id: int, now: str) -> None:
     conn.execute("UPDATE opportunities SET last_seen_at = ? WHERE id = ?", (now, opp_id))
 
 
+def upsert_market_snapshot(
+    conn: sqlite3.Connection, strategy_id: str, pair_key: str, label: str,
+    polymarket_price: float | None, other_venue_price: float | None,
+    divergence_cents: float | None, entry_threshold_cents: float, now: str,
+) -> None:
+    """Latest-price snapshot per watched pair, refreshed every scan tick regardless
+    of whether an opportunity fires — this is what the dashboard's live markets
+    panel reads, since it's a separate process with no access to in-memory book state."""
+    conn.execute(
+        "INSERT INTO market_snapshots "
+        "(strategy_id, pair_key, label, polymarket_price, other_venue_price, divergence_cents, "
+        "entry_threshold_cents, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(strategy_id, pair_key) DO UPDATE SET "
+        "label=excluded.label, polymarket_price=excluded.polymarket_price, "
+        "other_venue_price=excluded.other_venue_price, divergence_cents=excluded.divergence_cents, "
+        "entry_threshold_cents=excluded.entry_threshold_cents, updated_at=excluded.updated_at",
+        (strategy_id, pair_key, label, polymarket_price, other_venue_price,
+         divergence_cents, entry_threshold_cents, now),
+    )
+
+
 def close_opportunity(conn: sqlite3.Connection, opp: sqlite3.Row, now: str) -> None:
     detected = dt.datetime.fromisoformat(opp["detected_at"])
     closed = dt.datetime.fromisoformat(now)
