@@ -49,11 +49,11 @@ def _store_market_metadata(conn, markets: list[dict]) -> None:
     conn.commit()
 
 
-async def run(settings: Settings) -> None:
-    if not settings.data_collection_enabled:
+async def run(settings: Settings, allow_live: bool = False) -> None:
+    if not settings.data_collection_enabled and not allow_live:
         print(
             "data_collection_enabled is false in config.yaml — the bot does nothing locally by design. "
-            "Set it true only on the VPS deployment."
+            "Pass --allow-live for a one-off manual run, or set the flag true (VPS only)."
         )
         return
 

@@ -109,7 +109,8 @@ def main() -> None:
 
     sub.add_parser("odds-pairs-review", help="Interactively approve/reject proposed Odds API pairs")
 
-    sub.add_parser("run", help="Run the live scan/paper-trade loop (gated by data_collection_enabled)")
+    run_parser = sub.add_parser("run", help="Run the live scan/paper-trade loop (gated by data_collection_enabled)")
+    run_parser.add_argument("--allow-live", action="store_true", help="Override data_collection_enabled=false for this run")
 
     sub.add_parser("report", help="Print per-strategy metrics, kill criteria, and a side-by-side comparison")
 
@@ -126,7 +127,7 @@ def main() -> None:
         if args.command == "run":
             settings = load_settings()
             setup_logging(settings.log.level, settings.log.file)
-            asyncio.run(run_bot(settings))
+            asyncio.run(run_bot(settings, args.allow_live))
         elif args.command == "feeds-check":
             asyncio.run(feeds_check(args.seconds, args.allow_live))
         elif args.command == "pairs-scan":
