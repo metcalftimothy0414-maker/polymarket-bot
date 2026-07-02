@@ -9,7 +9,7 @@ from bot.config import Settings
 from bot.feeds.auth import PolymarketAuth
 from bot.feeds.kalshi import KalshiFeedClient
 from bot.feeds.odds_api import OddsApiFeedClient
-from bot.feeds.polymarket import PolymarketRestClient, PolymarketWSClient
+from bot.feeds.polymarket import PolymarketRestClient, PolymarketRestPoller, PolymarketWSClient
 from bot.paper import (
     FillSimulator,
     check_reversal_exits,
@@ -66,11 +66,18 @@ async def run(settings: Settings) -> None:
     if not watchlist:
         watchlist = [m["slug"] for m in markets[: settings.feeds.polymarket.max_markets_per_connection]]
 
-    auth = PolymarketAuth(settings.polymarket_api_key_id, settings.polymarket_private_key)
-    ws = PolymarketWSClient(auth)
-    state = MarketState(ws)
-    fill_simulator = FillSimulator(state)
     stop_event = asyncio.Event()
+    use_rest_poll = settings.feeds.polymarket.transport == "rest_poll"
+    if use_rest_poll:
+        book_source = PolymarketRestPoller(rest, settings.feeds.polymarket.rest_poll_seconds)
+        polymarket_task = asyncio.create_task(book_source.poll(watchlist, stop_event))
+    else:
+        auth = PolymarketAuth(settings.polymarket_api_key_id, settings.polymarket_private_key)
+        book_source = PolymarketWSClient(auth)
+        polymarket_task = asyncio.create_task(book_source.stream(watchlist, _on_polymarket_update, stop_event=stop_event))
+
+    state = MarketState(book_source)
+    fill_simulator = FillSimulator(state)
 
     strategies = []
     fill_timeouts: dict[str, int] = {}
@@ -91,7 +98,7 @@ async def run(settings: Settings) -> None:
         strategies.append(s)
         fill_timeouts[s.strategy_id] = smc.fill_timeout_seconds
 
-    background_tasks = [asyncio.create_task(ws.stream(watchlist, _on_polymarket_update, stop_event=stop_event))]
+    background_tasks = [polymarket_task]
 
     if settings.feeds.kalshi.enabled:
         kalshi_tickers = [r[0] for r in conn.execute("SELECT DISTINCT kalshi_ticker FROM pairs WHERE verified = 1")]

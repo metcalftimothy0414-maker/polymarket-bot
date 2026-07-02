@@ -57,6 +57,37 @@ class PolymarketRestClient:
         await self._client.aclose()
 
 
+class PolymarketRestPoller:
+    """Fallback for MarketState when the authenticated WS stream isn't usable
+    (e.g. a network that strips/mangles the custom X-PM-* auth headers) —
+    polls the public REST book endpoint instead. Same STALE_SECONDS rule and
+    duck-typed .books/.is_stale(...) surface as PolymarketWSClient, so
+    MarketState doesn't care which one is driving it.
+    """
+
+    def __init__(self, rest_client: PolymarketRestClient, poll_seconds: float = 3.0) -> None:
+        self.rest_client = rest_client
+        self.poll_seconds = poll_seconds
+        self.books: dict[str, dict] = {}
+        self._last_update: dict[str, float] = {}
+
+    def is_stale(self, slug: str, now: float | None = None) -> bool:
+        now = now if now is not None else time.monotonic()
+        ts = self._last_update.get(slug)
+        return ts is None or (now - ts) > STALE_SECONDS
+
+    async def poll(self, market_slugs: list[str], stop_event: asyncio.Event | None = None) -> None:
+        while stop_event is None or not stop_event.is_set():
+            for slug in market_slugs:
+                try:
+                    book = await self.rest_client.get_book(slug)
+                    self.books[slug] = book
+                    self._last_update[slug] = time.monotonic()
+                except httpx.HTTPError as exc:
+                    logger.warning("REST book poll failed for %s: %s", slug, exc)
+            await asyncio.sleep(self.poll_seconds)
+
+
 class PolymarketWSClient:
     """Streams order-book updates for a watchlist of market slugs.
 

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import time
-
-from bot.feeds.polymarket import PolymarketWSClient
+from typing import Protocol
 
 KALSHI_STALE_SECONDS = 30
 ODDS_API_STALE_SECONDS = 60  # odds move slower than order books; polled, not streamed
@@ -28,10 +27,19 @@ class _VenueCache:
         return ts is None or (time.monotonic() - ts) > (max_age if max_age is not None else self.stale_seconds)
 
 
+class PolymarketBookSource(Protocol):
+    """Either PolymarketWSClient (streaming) or PolymarketRestPoller (fallback
+    for a network that blocks the authenticated WS handshake) satisfies this."""
+
+    books: dict[str, dict]
+
+    def is_stale(self, slug: str, now: float | None = None) -> bool: ...
+
+
 class MarketState:
     """Shared read surface strategies poll — feeds are the only writers."""
 
-    def __init__(self, polymarket_ws: PolymarketWSClient) -> None:
+    def __init__(self, polymarket_ws: PolymarketBookSource) -> None:
         self.polymarket_ws = polymarket_ws
         self.kalshi = _VenueCache(KALSHI_STALE_SECONDS)
         self.odds_api = _VenueCache(ODDS_API_STALE_SECONDS)

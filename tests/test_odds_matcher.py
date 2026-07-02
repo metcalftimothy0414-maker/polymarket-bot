@@ -64,6 +64,33 @@ ODDS_GAMES = [
 
 
 class TestFindOddsApiPairs(unittest.TestCase):
+    def test_uses_game_start_time_not_end_date_for_matching(self):
+        # Real Polymarket US markets: endDate is a resolution deadline that can be
+        # ~2 weeks after the actual event; gameStartTime is the real event date.
+        # Matching on endDate would silently never align with another venue's
+        # commence_time/close_time.
+        pm_market = {
+            "slug": "aec-ufc-fighter1-fighter2-2026-07-11",
+            "question": "Fighter One vs. Fighter Two",
+            "description": "",
+            "endDate": "2026-07-25T17:00:00Z",  # two weeks after the fight
+            "gameStartTime": "2026-07-11T21:00:00Z",  # the actual fight date
+            "marketSides": [
+                {"long": True, "team": {"name": "Fighter One"}},
+                {"long": False, "team": {"name": "Fighter Two"}},
+            ],
+        }
+        odds_game = {
+            "id": "game-fight",
+            "sport_key": "mma_mixed_martial_arts",
+            "home_team": "Fighter One",
+            "away_team": "Fighter Two",
+            "commence_time": "2026-07-11T21:00:00Z",  # matches gameStartTime, not endDate
+        }
+        proposals = find_odds_api_pairs([pm_market], [odds_game], similarity_threshold=0.5)
+        self.assertEqual(len(proposals), 1)
+        self.assertEqual(proposals[0].odds_api_game_id, "game-fight")
+
     def test_matches_same_teams_same_date_and_captures_long_team(self):
         proposals = find_odds_api_pairs(PM_MARKETS, ODDS_GAMES, similarity_threshold=0.5)
         match = next(p for p in proposals if p.polymarket_slug == "aec-nba-lal-bos-2026-01-10" and p.odds_api_game_id == "game-lal-bos")

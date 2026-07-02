@@ -16,6 +16,10 @@ class PolymarketFeedConfig(BaseModel):
     max_markets_per_connection: int = 100
     rest_rate_limit_per_sec: int = 20
     discovery_refresh_seconds: int = 3600
+    # "ws" (default, for a normal network) or "rest_poll" — fallback for a
+    # network that blocks/mangles the authenticated WS handshake.
+    transport: str = "ws"
+    rest_poll_seconds: float = 3.0
 
 
 class KalshiFeedConfig(BaseModel):

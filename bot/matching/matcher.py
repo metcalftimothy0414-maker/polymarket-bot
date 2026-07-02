@@ -71,7 +71,10 @@ def find_candidate_pairs(
     matches unrelated events on a busy sports day.
     """
     pm_indexed = [
-        (m, normalize_tokens(m["question"]), _date_only(m.get("endDate")))
+        # gameStartTime is the actual event date; endDate is a resolution deadline
+        # that can be ~2 weeks after the event (confirmed against live markets) —
+        # matching on endDate would silently never align with another venue's game date.
+        (m, normalize_tokens(m["question"]), _date_only(m.get("gameStartTime") or m.get("endDate")))
         for m in polymarket_markets
     ]
 
@@ -138,7 +141,7 @@ def find_odds_api_pairs(
     date_tolerance_days: int = 0,
 ) -> list[ProposedOddsPair]:
     pm_indexed = [
-        (m, normalize_tokens(m["question"]), _date_only(m.get("endDate")), _long_team_name(m))
+        (m, normalize_tokens(m["question"]), _date_only(m.get("gameStartTime") or m.get("endDate")), _long_team_name(m))
         for m in polymarket_markets
     ]
 
