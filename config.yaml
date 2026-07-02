@@ -1,0 +1,19 @@
+# Safety gate: no feed makes a live network call while this is false.
+# Keep false on dev machines; set true only on the VPS deployment.
+data_collection_enabled: false
+
+feeds:
+  polymarket:
+    categories: ["sports"]       # market discovery filter
+    watchlist_slugs: []          # explicit market slugs to stream; empty = none yet
+    max_markets_per_connection: 100
+    rest_rate_limit_per_sec: 20
+    discovery_refresh_seconds: 3600
+  kalshi:
+    enabled: true
+    poll_seconds: 15
+    base_url: "https://api.elections.kalshi.com/trade-api/v2"
+
+log:
+  level: INFO
+  file: "data/bot.log"
