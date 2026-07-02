@@ -98,6 +98,27 @@ CREATE TABLE IF NOT EXISTS candidates (
     seconds_remaining REAL,
     traded INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS paper_trades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    strategy_id TEXT NOT NULL,
+    params_hash TEXT NOT NULL,
+    opportunity_id INTEGER,
+    market_ref TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    signal_entry_price REAL NOT NULL,
+    fill_price REAL,
+    notional_usd REAL NOT NULL,
+    entry_fee REAL,
+    exit_price REAL,
+    exit_fee REAL,
+    exit_reason TEXT,
+    realized_pnl_usd REAL,
+    status TEXT NOT NULL DEFAULT 'pending_fill',
+    opened_at TEXT NOT NULL,
+    filled_at TEXT,
+    closed_at TEXT
+);
 """
 
 

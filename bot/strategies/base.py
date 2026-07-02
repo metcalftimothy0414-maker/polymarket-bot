@@ -24,8 +24,8 @@ def insert_opportunity(
     conn: sqlite3.Connection, strategy_id: str, params_hash: str, pair_id: int | None, market_ref: str,
     direction: str, signal_value: float, entry_price: float, top_levels: dict, now: str,
     extra: dict | None = None,
-) -> None:
-    conn.execute(
+) -> int:
+    cur = conn.execute(
         "INSERT INTO opportunities "
         "(strategy_id, params_hash, pair_id, market_ref, direction, signal_value, entry_price, "
         "top_levels_json, extra_json, detected_at, last_seen_at, status) "
@@ -33,6 +33,7 @@ def insert_opportunity(
         (strategy_id, params_hash, pair_id, market_ref, direction, signal_value,
          entry_price, json.dumps(top_levels), json.dumps(extra or {}), now, now),
     )
+    return cur.lastrowid
 
 
 def touch_opportunity(conn: sqlite3.Connection, opp_id: int, now: str) -> None:
@@ -60,6 +61,7 @@ class Opportunity:
     entry_price: float
     top_levels_json: str
     extra_json: str = "{}"
+    opportunity_id: int | None = None
 
 
 class Strategy(Protocol):

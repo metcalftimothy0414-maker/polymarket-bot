@@ -12,6 +12,7 @@ from bot.feeds.auth import PolymarketAuth
 from bot.feeds.polymarket import PolymarketRestClient, PolymarketWSClient
 from bot.logging_conf import setup_logging
 from bot.matching.cli import odds_pairs_review, odds_pairs_scan, pairs_review, pairs_scan
+from bot.runner import run as run_bot
 
 logger = logging.getLogger(__name__)
 
@@ -107,9 +108,15 @@ def main() -> None:
 
     sub.add_parser("odds-pairs-review", help="Interactively approve/reject proposed Odds API pairs")
 
+    sub.add_parser("run", help="Run the live scan/paper-trade loop (gated by data_collection_enabled)")
+
     args = parser.parse_args()
     try:
-        if args.command == "feeds-check":
+        if args.command == "run":
+            settings = load_settings()
+            setup_logging(settings.log.level, settings.log.file)
+            asyncio.run(run_bot(settings))
+        elif args.command == "feeds-check":
             asyncio.run(feeds_check(args.seconds, args.allow_live))
         elif args.command == "pairs-scan":
             settings = load_settings()

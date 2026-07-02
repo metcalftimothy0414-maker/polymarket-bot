@@ -89,12 +89,13 @@ class DivergenceStrategy:
                     "kalshi": kalshi_top_levels(k_book),
                 }
                 if existing is None:
-                    insert_opportunity(
+                    opp_id = insert_opportunity(
                         self.conn, self.strategy_id, self.params_hash(), pair_id, pm_slug,
                         direction, signal_value, entry_price, top_levels, now,
                     )
                 else:
                     touch_opportunity(self.conn, existing["id"], now)
+                    opp_id = existing["id"]
                 detected.append(Opportunity(
                     strategy_id=self.strategy_id,
                     params_hash=self.params_hash(),
@@ -102,6 +103,7 @@ class DivergenceStrategy:
                     market_ref=pm_slug,
                     direction=direction,
                     signal_value=signal_value,
+                    opportunity_id=opp_id,
                     entry_price=entry_price,
                     top_levels_json=json.dumps(top_levels),
                 ))
