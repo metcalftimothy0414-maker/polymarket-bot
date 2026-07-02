@@ -47,6 +47,24 @@ CREATE TABLE IF NOT EXISTS pairs (
     UNIQUE(polymarket_slug, kalshi_ticker)
 );
 
+CREATE TABLE IF NOT EXISTS odds_pairs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    polymarket_slug TEXT NOT NULL,
+    odds_api_game_id TEXT NOT NULL,
+    odds_api_sport_key TEXT NOT NULL,
+    long_team TEXT NOT NULL,
+    similarity_score REAL NOT NULL,
+    polymarket_question TEXT,
+    polymarket_description TEXT,
+    polymarket_end_date TEXT,
+    odds_api_matchup TEXT,
+    odds_api_commence_time TEXT,
+    verified INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    reviewed_at TEXT,
+    UNIQUE(polymarket_slug, odds_api_game_id)
+);
+
 CREATE TABLE IF NOT EXISTS opportunities (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     strategy_id TEXT NOT NULL,

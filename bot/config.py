@@ -7,7 +7,7 @@ import yaml
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
-REQUIRED_ENV_VARS = ("POLYMARKET_API_KEY_ID", "POLYMARKET_PRIVATE_KEY")
+REQUIRED_ENV_VARS = ("POLYMARKET_API_KEY_ID", "POLYMARKET_PRIVATE_KEY", "ODDS_API_KEY")
 
 
 class PolymarketFeedConfig(BaseModel):
@@ -24,9 +24,17 @@ class KalshiFeedConfig(BaseModel):
     base_url: str = "https://api.elections.kalshi.com/trade-api/v2"
 
 
+class OddsApiFeedConfig(BaseModel):
+    enabled: bool = True
+    poll_seconds: int = 30
+    base_url: str = "https://api.the-odds-api.com"
+    regions: str = "us"
+
+
 class FeedsConfig(BaseModel):
     polymarket: PolymarketFeedConfig
     kalshi: KalshiFeedConfig
+    odds_api: OddsApiFeedConfig
 
 
 class LogConfig(BaseModel):
@@ -40,6 +48,7 @@ class Settings(BaseModel):
     log: LogConfig
     polymarket_api_key_id: str
     polymarket_private_key: str
+    odds_api_key: str
 
 
 def load_settings(config_path: str | Path = "config.yaml") -> Settings:
@@ -60,4 +69,5 @@ def load_settings(config_path: str | Path = "config.yaml") -> Settings:
         **raw,
         polymarket_api_key_id=values["POLYMARKET_API_KEY_ID"],
         polymarket_private_key=values["POLYMARKET_PRIVATE_KEY"],
+        odds_api_key=values["ODDS_API_KEY"],
     )

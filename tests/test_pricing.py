@@ -1,7 +1,14 @@
 import unittest
 
 from bot.fees import maker_fee, taker_fee
-from bot.pricing import kalshi_best_yes_bid_ask, kalshi_mid_price, polymarket_best_bid_ask, polymarket_mid_price
+from bot.pricing import (
+    consensus_devigged_prob_for_team,
+    devig_two_way,
+    kalshi_best_yes_bid_ask,
+    kalshi_mid_price,
+    polymarket_best_bid_ask,
+    polymarket_mid_price,
+)
 
 
 def pm_book(bid, ask):
@@ -45,6 +52,45 @@ class TestFees(unittest.TestCase):
 
     def test_maker_fee_is_a_rebate(self):
         self.assertLess(maker_fee(0.50), 0)
+
+
+def game_fixture(bookmaker_prices: list[tuple[float, float]]) -> dict:
+    return {
+        "bookmakers": [
+            {
+                "key": f"book{i}",
+                "markets": [{
+                    "key": "h2h",
+                    "outcomes": [{"name": "Lakers", "price": lp}, {"name": "Celtics", "price": cp}],
+                }],
+            }
+            for i, (lp, cp) in enumerate(bookmaker_prices)
+        ]
+    }
+
+
+class TestDevig(unittest.TestCase):
+    def test_no_vig_case_unchanged(self):
+        # 1/1.5 + 1/3.0 == 1.0 exactly, so de-vig should be a no-op
+        a, b = devig_two_way(1 / 1.5, 1 / 3.0)
+        self.assertAlmostEqual(a, 1 / 1.5)
+        self.assertAlmostEqual(b, 1 / 3.0)
+
+    def test_removes_symmetric_vig(self):
+        # both sides at decimal 1.9 (~ -110/-110): raw probs sum to 1.0526, should devig to 0.5/0.5
+        a, b = devig_two_way(1 / 1.9, 1 / 1.9)
+        self.assertAlmostEqual(a, 0.5)
+        self.assertAlmostEqual(b, 0.5)
+
+    def test_consensus_uses_median_across_bookmakers(self):
+        game = game_fixture([(1.9, 1.9), (2.0, 1.8), (1.8, 2.0)])
+        prob = consensus_devigged_prob_for_team(game, "Lakers")
+        self.assertIsNotNone(prob)
+        self.assertGreater(prob, 0.4)
+        self.assertLess(prob, 0.6)
+
+    def test_missing_market_returns_none(self):
+        self.assertIsNone(consensus_devigged_prob_for_team({"bookmakers": []}, "Lakers"))
 
 
 if __name__ == "__main__":

@@ -13,6 +13,11 @@ feeds:
     enabled: true
     poll_seconds: 15
     base_url: "https://api.elections.kalshi.com/trade-api/v2"
+  odds_api:
+    enabled: true
+    poll_seconds: 30
+    base_url: "https://api.the-odds-api.com"
+    regions: "us"
 
 log:
   level: INFO

@@ -5,6 +5,27 @@ import time
 from bot.feeds.polymarket import PolymarketWSClient
 
 KALSHI_STALE_SECONDS = 30
+ODDS_API_STALE_SECONDS = 60  # odds move slower than order books; polled, not streamed
+
+
+class _VenueCache:
+    """Generic last-value + staleness tracker for a polled (non-WS) venue."""
+
+    def __init__(self, stale_seconds: float) -> None:
+        self.stale_seconds = stale_seconds
+        self._data: dict[str, dict] = {}
+        self._last_seen: dict[str, float] = {}
+
+    def update(self, key: str, value: dict) -> None:
+        self._data[key] = value
+        self._last_seen[key] = time.monotonic()
+
+    def get(self, key: str) -> dict | None:
+        return self._data.get(key)
+
+    def is_stale(self, key: str, max_age: float | None = None) -> bool:
+        ts = self._last_seen.get(key)
+        return ts is None or (time.monotonic() - ts) > (max_age if max_age is not None else self.stale_seconds)
 
 
 class MarketState:
@@ -12,22 +33,11 @@ class MarketState:
 
     def __init__(self, polymarket_ws: PolymarketWSClient) -> None:
         self.polymarket_ws = polymarket_ws
-        self.kalshi_books: dict[str, dict] = {}
-        self._kalshi_last_seen: dict[str, float] = {}
+        self.kalshi = _VenueCache(KALSHI_STALE_SECONDS)
+        self.odds_api = _VenueCache(ODDS_API_STALE_SECONDS)
 
     def polymarket_book(self, slug: str) -> dict | None:
         return self.polymarket_ws.books.get(slug)
 
     def polymarket_is_stale(self, slug: str) -> bool:
         return self.polymarket_ws.is_stale(slug)
-
-    def update_kalshi(self, ticker: str, book: dict) -> None:
-        self.kalshi_books[ticker] = book
-        self._kalshi_last_seen[ticker] = time.monotonic()
-
-    def kalshi_book(self, ticker: str) -> dict | None:
-        return self.kalshi_books.get(ticker)
-
-    def kalshi_is_stale(self, ticker: str, max_age: float = KALSHI_STALE_SECONDS) -> bool:
-        ts = self._kalshi_last_seen.get(ticker)
-        return ts is None or (time.monotonic() - ts) > max_age

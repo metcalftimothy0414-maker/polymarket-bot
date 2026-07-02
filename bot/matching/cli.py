@@ -3,12 +3,19 @@ from __future__ import annotations
 import datetime as dt
 import sqlite3
 import textwrap
+from typing import Callable
 
 from bot import db
 from bot.config import Settings
 from bot.feeds.kalshi import KalshiFeedClient
+from bot.feeds.odds_api import OddsApiFeedClient
 from bot.feeds.polymarket import PolymarketRestClient
-from bot.matching.matcher import find_candidate_pairs, store_pairs
+from bot.matching.matcher import (
+    find_candidate_pairs,
+    find_odds_api_pairs,
+    store_odds_pairs,
+    store_pairs,
+)
 
 
 def _now() -> str:
@@ -47,16 +54,50 @@ async def pairs_scan(
 
     conn = db.connect()
     inserted = store_pairs(conn, proposals)
-    print(f"Stored {inserted} new unverified pairs. Run `bot pairs review` to approve them.")
+    print(f"Stored {inserted} new unverified pairs. Run `bot pairs-review` to approve them.")
 
 
-def pairs_review(conn: sqlite3.Connection) -> None:
-    rows = conn.execute(
-        "SELECT id, polymarket_slug, kalshi_ticker, similarity_score, polymarket_question, "
-        "polymarket_description, polymarket_end_date, kalshi_title, kalshi_rules, kalshi_close_date "
-        "FROM pairs WHERE verified = 0 ORDER BY similarity_score DESC"
-    ).fetchall()
+async def odds_pairs_scan(
+    settings: Settings,
+    polymarket_category: str,
+    odds_sport_key: str,
+    similarity_threshold: float,
+    date_tolerance_days: int,
+    allow_live: bool,
+) -> None:
+    if not settings.data_collection_enabled and not allow_live:
+        print(
+            "data_collection_enabled is false in config.yaml — no live calls made. "
+            "Pass --allow-live for a one-off manual scan, or set the flag true (VPS only)."
+        )
+        return
 
+    pm_client = PolymarketRestClient(settings.feeds.polymarket.rest_rate_limit_per_sec)
+    odds_client = OddsApiFeedClient(settings.odds_api_key, settings.feeds.odds_api.base_url, settings.feeds.odds_api.regions)
+    try:
+        pm_markets = await pm_client.discover_markets([polymarket_category], closed=False)
+        games = await odds_client.get_odds(odds_sport_key)
+    finally:
+        await pm_client.aclose()
+        await odds_client.aclose()
+
+    print(f"Polymarket US: {len(pm_markets)} open markets in category={polymarket_category!r}")
+    print(f"Odds API: {len(games)} games in sport={odds_sport_key!r}")
+
+    proposals = find_odds_api_pairs(pm_markets, games, similarity_threshold, date_tolerance_days)
+    print(f"Found {len(proposals)} candidate pairs above similarity_threshold={similarity_threshold}")
+
+    conn = db.connect()
+    inserted = store_odds_pairs(conn, proposals)
+    print(f"Stored {inserted} new unverified odds_pairs. Run `bot odds-pairs-review` to approve them.")
+
+
+def _interactive_review(
+    conn: sqlite3.Connection,
+    table: str,
+    rows: list[tuple],
+    print_row: Callable[[tuple], None],
+) -> None:
     if not rows:
         print("No unverified pairs pending review.")
         return
@@ -64,18 +105,8 @@ def pairs_review(conn: sqlite3.Connection) -> None:
     print(f"{len(rows)} unverified pair(s) to review. For each: [y]es approve, [n]o reject+delete, [s]kip, [q]uit.\n")
 
     for row in rows:
-        (pair_id, pm_slug, k_ticker, score, pm_q, pm_desc, pm_end, k_title, k_rules, k_close) = row
-        print("=" * 100)
-        print(f"pair #{pair_id}  similarity={score}")
-        print("-" * 100)
-        print(f"POLYMARKET  slug={pm_slug}  ends={pm_end}")
-        print(f"  question: {pm_q}")
-        print(f"  resolution criteria:\n{textwrap.indent(textwrap.fill(pm_desc or '(none)', 96), '    ')}")
-        print("-" * 100)
-        print(f"KALSHI      ticker={k_ticker}  closes={k_close}")
-        print(f"  title: {k_title}")
-        print(f"  resolution criteria:\n{textwrap.indent(textwrap.fill(k_rules or '(none)', 96), '    ')}")
-        print("=" * 100)
+        pair_id = row[0]
+        print_row(row)
 
         while True:
             choice = input("Approve this pair? [y/n/s/q]: ").strip().lower()
@@ -89,11 +120,56 @@ def pairs_review(conn: sqlite3.Connection) -> None:
         if choice == "s":
             continue
         if choice == "y":
-            conn.execute(
-                "UPDATE pairs SET verified = 1, reviewed_at = ? WHERE id = ?", (_now(), pair_id)
-            )
+            conn.execute(f"UPDATE {table} SET verified = 1, reviewed_at = ? WHERE id = ?", (_now(), pair_id))
             print("approved.\n")
         elif choice == "n":
-            conn.execute("DELETE FROM pairs WHERE id = ?", (pair_id,))
+            conn.execute(f"DELETE FROM {table} WHERE id = ?", (pair_id,))
             print("rejected and deleted.\n")
         conn.commit()
+
+
+def pairs_review(conn: sqlite3.Connection) -> None:
+    rows = conn.execute(
+        "SELECT id, polymarket_slug, kalshi_ticker, similarity_score, polymarket_question, "
+        "polymarket_description, polymarket_end_date, kalshi_title, kalshi_rules, kalshi_close_date "
+        "FROM pairs WHERE verified = 0 ORDER BY similarity_score DESC"
+    ).fetchall()
+
+    def print_row(row: tuple) -> None:
+        (pair_id, pm_slug, k_ticker, score, pm_q, pm_desc, pm_end, k_title, k_rules, k_close) = row
+        print("=" * 100)
+        print(f"pair #{pair_id}  similarity={score}")
+        print("-" * 100)
+        print(f"POLYMARKET  slug={pm_slug}  ends={pm_end}")
+        print(f"  question: {pm_q}")
+        print(f"  resolution criteria:\n{textwrap.indent(textwrap.fill(pm_desc or '(none)', 96), '    ')}")
+        print("-" * 100)
+        print(f"KALSHI      ticker={k_ticker}  closes={k_close}")
+        print(f"  title: {k_title}")
+        print(f"  resolution criteria:\n{textwrap.indent(textwrap.fill(k_rules or '(none)', 96), '    ')}")
+        print("=" * 100)
+
+    _interactive_review(conn, "pairs", rows, print_row)
+
+
+def odds_pairs_review(conn: sqlite3.Connection) -> None:
+    rows = conn.execute(
+        "SELECT id, polymarket_slug, odds_api_game_id, long_team, similarity_score, polymarket_question, "
+        "polymarket_description, polymarket_end_date, odds_api_matchup, odds_api_commence_time "
+        "FROM odds_pairs WHERE verified = 0 ORDER BY similarity_score DESC"
+    ).fetchall()
+
+    def print_row(row: tuple) -> None:
+        (pair_id, pm_slug, game_id, long_team, score, pm_q, pm_desc, pm_end, matchup, commence) = row
+        print("=" * 100)
+        print(f"pair #{pair_id}  similarity={score}  long_team={long_team}")
+        print("-" * 100)
+        print(f"POLYMARKET  slug={pm_slug}  ends={pm_end}")
+        print(f"  question: {pm_q}")
+        print(f"  resolution criteria:\n{textwrap.indent(textwrap.fill(pm_desc or '(none)', 96), '    ')}")
+        print("-" * 100)
+        print(f"ODDS API    game_id={game_id}  commences={commence}")
+        print(f"  matchup: {matchup}")
+        print("=" * 100)
+
+    _interactive_review(conn, "odds_pairs", rows, print_row)

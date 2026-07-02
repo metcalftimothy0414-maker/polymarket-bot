@@ -46,7 +46,7 @@ class TestDivergenceStrategy(unittest.TestCase):
 
     def test_no_opportunity_when_below_threshold(self):
         self.ws.books["pm-slug"] = pm_book(0.50, 0.51)
-        self.state.update_kalshi("K-TICKER", k_book(0.505, 0.495))  # kalshi mid ~0.505, tiny edge
+        self.state.kalshi.update("K-TICKER", k_book(0.505, 0.495))  # kalshi mid ~0.505, tiny edge
         opps = self._scan()
         self.assertEqual(opps, [])
         row = self.conn.execute("SELECT COUNT(*) FROM opportunities").fetchone()
@@ -54,7 +54,7 @@ class TestDivergenceStrategy(unittest.TestCase):
 
     def test_opens_opportunity_when_threshold_crossed(self):
         self.ws.books["pm-slug"] = pm_book(0.50, 0.51)
-        self.state.update_kalshi("K-TICKER", k_book(0.58, 0.42))  # kalshi mid 0.58 vs pm ask 0.51 -> big edge
+        self.state.kalshi.update("K-TICKER", k_book(0.58, 0.42))  # kalshi mid 0.58 vs pm ask 0.51 -> big edge
         opps = self._scan()
         self.assertEqual(len(opps), 1)
         self.assertEqual(opps[0].direction, "buy_polymarket")
@@ -63,7 +63,7 @@ class TestDivergenceStrategy(unittest.TestCase):
 
     def test_persists_without_duplicate_row_while_still_open(self):
         self.ws.books["pm-slug"] = pm_book(0.50, 0.51)
-        self.state.update_kalshi("K-TICKER", k_book(0.58, 0.42))
+        self.state.kalshi.update("K-TICKER", k_book(0.58, 0.42))
         self._scan()
         self._scan()
         self._scan()
@@ -72,9 +72,9 @@ class TestDivergenceStrategy(unittest.TestCase):
 
     def test_closes_when_divergence_drops_below_threshold(self):
         self.ws.books["pm-slug"] = pm_book(0.50, 0.51)
-        self.state.update_kalshi("K-TICKER", k_book(0.58, 0.42))
+        self.state.kalshi.update("K-TICKER", k_book(0.58, 0.42))
         self._scan()
-        self.state.update_kalshi("K-TICKER", k_book(0.505, 0.495))  # divergence closes
+        self.state.kalshi.update("K-TICKER", k_book(0.505, 0.495))  # divergence closes
         self._scan()
         row = self.conn.execute("SELECT status, persistence_seconds FROM opportunities").fetchone()
         self.assertEqual(row[0], "closed")
@@ -82,7 +82,7 @@ class TestDivergenceStrategy(unittest.TestCase):
 
     def test_stale_data_never_opens_an_opportunity(self):
         self.ws.books["pm-slug"] = pm_book(0.50, 0.51)
-        self.state.update_kalshi("K-TICKER", k_book(0.58, 0.42))
+        self.state.kalshi.update("K-TICKER", k_book(0.58, 0.42))
         self.ws._stale.add("pm-slug")
         opps = self._scan()
         self.assertEqual(opps, [])
@@ -96,7 +96,7 @@ class TestDivergenceStrategy(unittest.TestCase):
         )
         self.conn.commit()
         self.ws.books["unverified-slug"] = pm_book(0.10, 0.11)
-        self.state.update_kalshi("K-OTHER", k_book(0.90, 0.10))  # huge divergence, but unverified
+        self.state.kalshi.update("K-OTHER", k_book(0.90, 0.10))  # huge divergence, but unverified
         opps = self._scan()
         self.assertTrue(all(o.market_ref != "unverified-slug" for o in opps))
 

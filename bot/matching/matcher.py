@@ -25,6 +25,22 @@ def jaccard(a: set[str], b: set[str]) -> float:
     return len(a & b) / len(a | b)
 
 
+def token_overlap_score(a: set[str], b: set[str]) -> float:
+    """Overlap coefficient: intersection / smaller set size.
+
+    Used instead of Jaccard for cross-venue matching because venues disagree
+    on naming convention (Polymarket "Lakers vs. Celtics" vs. Odds API's full
+    "Los Angeles Lakers"/"Boston Celtics") — Jaccard punishes that size
+    mismatch even on a perfect match. The verified/reviewed gate downstream
+    is the real false-match safeguard, not this score, so being more
+    permissive here (more candidates surfaced for a human to check) is the
+    right tradeoff.
+    """
+    if not a or not b:
+        return 0.0
+    return len(a & b) / min(len(a), len(b))
+
+
 def _date_only(iso_str: str | None) -> str | None:
     return iso_str[:10] if iso_str else None
 
@@ -74,7 +90,7 @@ def find_candidate_pairs(
             elif abs((dt.date.fromisoformat(pm_date) - dt.date.fromisoformat(k_date)).days) > date_tolerance_days:
                 continue
 
-            score = jaccard(pm_tokens, k_tokens)
+            score = token_overlap_score(pm_tokens, k_tokens)
             if score >= similarity_threshold:
                 proposals.append(ProposedPair(
                     polymarket_slug=pm["slug"],
@@ -90,6 +106,93 @@ def find_candidate_pairs(
 
     proposals.sort(key=lambda p: p.similarity_score, reverse=True)
     return proposals
+
+
+def _long_team_name(pm_market: dict) -> str | None:
+    """The Polymarket market's order book prices the 'long' side of marketSides —
+    that's the team whose win probability we need from the other venue to compare."""
+    for side in pm_market.get("marketSides", []):
+        if side.get("long") and side.get("team"):
+            return side["team"].get("name")
+    return None
+
+
+@dataclass
+class ProposedOddsPair:
+    polymarket_slug: str
+    odds_api_game_id: str
+    odds_api_sport_key: str
+    long_team: str
+    similarity_score: float
+    polymarket_question: str
+    polymarket_description: str
+    polymarket_end_date: str | None
+    odds_api_matchup: str
+    odds_api_commence_time: str | None
+
+
+def find_odds_api_pairs(
+    polymarket_markets: list[dict],
+    odds_games: list[dict],
+    similarity_threshold: float = 0.6,
+    date_tolerance_days: int = 0,
+) -> list[ProposedOddsPair]:
+    pm_indexed = [
+        (m, normalize_tokens(m["question"]), _date_only(m.get("endDate")), _long_team_name(m))
+        for m in polymarket_markets
+    ]
+
+    proposals: list[ProposedOddsPair] = []
+    for game in odds_games:
+        matchup = f"{game.get('home_team', '')} {game.get('away_team', '')}".strip()
+        g_tokens = normalize_tokens(matchup)
+        g_date = _date_only(game.get("commence_time"))
+
+        for pm, pm_tokens, pm_date, long_team in pm_indexed:
+            if pm_date is None or g_date is None or long_team is None:
+                continue
+            if date_tolerance_days == 0:
+                if pm_date != g_date:
+                    continue
+            elif abs((dt.date.fromisoformat(pm_date) - dt.date.fromisoformat(g_date)).days) > date_tolerance_days:
+                continue
+
+            score = token_overlap_score(pm_tokens, g_tokens)
+            if score >= similarity_threshold:
+                proposals.append(ProposedOddsPair(
+                    polymarket_slug=pm["slug"],
+                    odds_api_game_id=game["id"],
+                    odds_api_sport_key=game.get("sport_key", ""),
+                    long_team=long_team,
+                    similarity_score=round(score, 4),
+                    polymarket_question=pm["question"],
+                    polymarket_description=pm.get("description", ""),
+                    polymarket_end_date=pm.get("endDate"),
+                    odds_api_matchup=matchup,
+                    odds_api_commence_time=game.get("commence_time"),
+                ))
+
+    proposals.sort(key=lambda p: p.similarity_score, reverse=True)
+    return proposals
+
+
+def store_odds_pairs(conn: sqlite3.Connection, pairs: list[ProposedOddsPair]) -> int:
+    now = dt.datetime.now(dt.timezone.utc).isoformat()
+    inserted = 0
+    for p in pairs:
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO odds_pairs "
+            "(polymarket_slug, odds_api_game_id, odds_api_sport_key, long_team, similarity_score, "
+            "polymarket_question, polymarket_description, polymarket_end_date, odds_api_matchup, "
+            "odds_api_commence_time, verified, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
+            (p.polymarket_slug, p.odds_api_game_id, p.odds_api_sport_key, p.long_team, p.similarity_score,
+             p.polymarket_question, p.polymarket_description, p.polymarket_end_date, p.odds_api_matchup,
+             p.odds_api_commence_time, now),
+        )
+        inserted += cur.rowcount
+    conn.commit()
+    return inserted
 
 
 def store_pairs(conn: sqlite3.Connection, pairs: list[ProposedPair]) -> int:

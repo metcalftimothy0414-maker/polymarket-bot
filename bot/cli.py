@@ -11,7 +11,7 @@ from bot.config import load_settings
 from bot.feeds.auth import PolymarketAuth
 from bot.feeds.polymarket import PolymarketRestClient, PolymarketWSClient
 from bot.logging_conf import setup_logging
-from bot.matching.cli import pairs_review, pairs_scan
+from bot.matching.cli import odds_pairs_review, odds_pairs_scan, pairs_review, pairs_scan
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +98,15 @@ def main() -> None:
 
     sub.add_parser("pairs-review", help="Interactively approve/reject proposed pairs")
 
+    odds_scan = sub.add_parser("odds-pairs-scan", help="Discover candidate Polymarket <-> Odds API pairs")
+    odds_scan.add_argument("--polymarket-category", required=True)
+    odds_scan.add_argument("--odds-sport-key", required=True, help="The Odds API sport_key, e.g. basketball_nba")
+    odds_scan.add_argument("--similarity-threshold", type=float, default=0.6)
+    odds_scan.add_argument("--date-tolerance-days", type=int, default=0)
+    odds_scan.add_argument("--allow-live", action="store_true", help="Override data_collection_enabled=false for this run")
+
+    sub.add_parser("odds-pairs-review", help="Interactively approve/reject proposed Odds API pairs")
+
     args = parser.parse_args()
     try:
         if args.command == "feeds-check":
@@ -114,6 +123,18 @@ def main() -> None:
             setup_logging(settings.log.level, settings.log.file)
             conn = db.connect()
             pairs_review(conn)
+        elif args.command == "odds-pairs-scan":
+            settings = load_settings()
+            setup_logging(settings.log.level, settings.log.file)
+            asyncio.run(odds_pairs_scan(
+                settings, args.polymarket_category, args.odds_sport_key,
+                args.similarity_threshold, args.date_tolerance_days, args.allow_live,
+            ))
+        elif args.command == "odds-pairs-review":
+            settings = load_settings()
+            setup_logging(settings.log.level, settings.log.file)
+            conn = db.connect()
+            odds_pairs_review(conn)
     except SystemExit:
         raise
     except Exception as exc:

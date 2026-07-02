@@ -4,12 +4,7 @@ import json
 import sqlite3
 
 from bot.fees import taker_fee
-from bot.pricing import (
-    kalshi_mid_price,
-    kalshi_top_levels,
-    polymarket_best_bid_ask,
-    polymarket_top_levels,
-)
+from bot.pricing import consensus_devigged_prob_for_team, polymarket_best_bid_ask, polymarket_top_levels
 from bot.state import MarketState
 from bot.strategies.base import (
     Opportunity,
@@ -21,14 +16,14 @@ from bot.strategies.base import (
 )
 from bot.timeutil import now_iso
 
-STRATEGY_ID = "divergence"
+STRATEGY_ID = "sportsbook_divergence"
 
 
-class DivergenceStrategy:
-    """Cross-venue signal: Kalshi mid-price vs. Polymarket US executable price.
+class SportsbookDivergenceStrategy:
+    """De-vigged consensus odds (The Odds API) vs. Polymarket US executable price.
 
-    Only acts on verified pairs (matching/matcher.py) — never scans unverified
-    ones, since a false pair looks like free money and is actually a coin flip.
+    Only acts on verified odds_pairs — same false-match risk as the Kalshi
+    divergence strategy applies here too (team-name matching across venues).
     """
 
     strategy_id = STRATEGY_ID
@@ -51,30 +46,28 @@ class DivergenceStrategy:
         detected: list[Opportunity] = []
 
         pairs = self.conn.execute(
-            "SELECT id, polymarket_slug, kalshi_ticker FROM pairs WHERE verified = 1"
+            "SELECT id, polymarket_slug, odds_api_game_id, long_team FROM odds_pairs WHERE verified = 1"
         ).fetchall()
 
-        for pair_id, pm_slug, k_ticker in pairs:
+        for pair_id, pm_slug, game_id, long_team in pairs:
             pm_book = self.state.polymarket_book(pm_slug)
-            k_book = self.state.kalshi.get(k_ticker)
+            game = self.state.odds_api.get(game_id)
             existing = find_open_opportunity(self.conn, self.strategy_id, pair_id)
 
-            if not pm_book or not k_book:
+            if not pm_book or not game:
                 continue
-            # Hard risk rule: never trade on stale data — a stale-data "edge" is fake.
-            if self.state.polymarket_is_stale(pm_slug) or self.state.kalshi.is_stale(k_ticker):
+            if self.state.polymarket_is_stale(pm_slug) or self.state.odds_api.is_stale(game_id):
                 if existing is not None:
                     close_opportunity(self.conn, existing, now)
                 continue
 
             pm_bid, pm_ask = polymarket_best_bid_ask(pm_book)
-            k_mid = kalshi_mid_price(k_book)
-            if pm_bid is None or pm_ask is None or k_mid is None:
+            consensus_prob = consensus_devigged_prob_for_team(game, long_team)
+            if pm_bid is None or pm_ask is None or consensus_prob is None:
                 continue
 
-            # Executable divergence: what we could actually fill at, fee-adjusted.
-            buy_edge = k_mid - pm_ask - taker_fee(pm_ask)
-            sell_edge = pm_bid - k_mid - taker_fee(pm_bid)
+            buy_edge = consensus_prob - pm_ask - taker_fee(pm_ask)
+            sell_edge = pm_bid - consensus_prob - taker_fee(pm_bid)
 
             direction, signal_value, entry_price = None, 0.0, None
             threshold = self.entry_threshold_cents / 100
@@ -84,10 +77,7 @@ class DivergenceStrategy:
                 direction, signal_value, entry_price = "sell_polymarket", sell_edge, pm_bid
 
             if direction:
-                top_levels = {
-                    "polymarket": polymarket_top_levels(pm_book),
-                    "kalshi": kalshi_top_levels(k_book),
-                }
+                top_levels = {"polymarket": polymarket_top_levels(pm_book), "consensus_prob": consensus_prob}
                 if existing is None:
                     insert_opportunity(
                         self.conn, self.strategy_id, self.params_hash(), pair_id, pm_slug,
