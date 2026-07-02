@@ -27,6 +27,22 @@ class KalshiFeedClient:
         resp.raise_for_status()
         return resp.json()["orderbook"]
 
+    async def get_markets(self, series_ticker: str, status: str = "open", limit: int = 200) -> list[dict]:
+        markets: list[dict] = []
+        cursor = None
+        while True:
+            params = {"series_ticker": series_ticker, "status": status, "limit": limit}
+            if cursor:
+                params["cursor"] = cursor
+            resp = await self._client.get("/markets", params=params)
+            resp.raise_for_status()
+            body = resp.json()
+            markets.extend(body.get("markets", []))
+            cursor = body.get("cursor")
+            if not cursor:
+                break
+        return markets
+
     async def poll(
         self,
         tickers: list[str],

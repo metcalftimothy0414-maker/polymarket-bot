@@ -29,6 +29,23 @@ CREATE TABLE IF NOT EXISTS errors (
     component TEXT NOT NULL,
     message TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS pairs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    polymarket_slug TEXT NOT NULL,
+    kalshi_ticker TEXT NOT NULL,
+    similarity_score REAL NOT NULL,
+    polymarket_question TEXT,
+    polymarket_description TEXT,
+    polymarket_end_date TEXT,
+    kalshi_title TEXT,
+    kalshi_rules TEXT,
+    kalshi_close_date TEXT,
+    verified INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    reviewed_at TEXT,
+    UNIQUE(polymarket_slug, kalshi_ticker)
+);
 """
 
 

@@ -11,6 +11,7 @@ from bot.config import load_settings
 from bot.feeds.auth import PolymarketAuth
 from bot.feeds.polymarket import PolymarketRestClient, PolymarketWSClient
 from bot.logging_conf import setup_logging
+from bot.matching.cli import pairs_review, pairs_scan
 
 logger = logging.getLogger(__name__)
 
@@ -88,16 +89,37 @@ def main() -> None:
     check.add_argument("--seconds", type=int, default=20, help="How long to stream WS updates for")
     check.add_argument("--allow-live", action="store_true", help="Override data_collection_enabled=false for this run")
 
+    scan = sub.add_parser("pairs-scan", help="Discover candidate cross-venue market pairs")
+    scan.add_argument("--polymarket-category", required=True)
+    scan.add_argument("--kalshi-series", required=True, help="Kalshi series_ticker, e.g. KXNBA")
+    scan.add_argument("--similarity-threshold", type=float, default=0.6)
+    scan.add_argument("--date-tolerance-days", type=int, default=0)
+    scan.add_argument("--allow-live", action="store_true", help="Override data_collection_enabled=false for this run")
+
+    sub.add_parser("pairs-review", help="Interactively approve/reject proposed pairs")
+
     args = parser.parse_args()
-    if args.command == "feeds-check":
-        try:
+    try:
+        if args.command == "feeds-check":
             asyncio.run(feeds_check(args.seconds, args.allow_live))
-        except SystemExit:
-            raise
-        except Exception as exc:
-            logger.exception("feeds-check failed")
-            print(f"error: {exc}", file=sys.stderr)
-            sys.exit(1)
+        elif args.command == "pairs-scan":
+            settings = load_settings()
+            setup_logging(settings.log.level, settings.log.file)
+            asyncio.run(pairs_scan(
+                settings, args.polymarket_category, args.kalshi_series,
+                args.similarity_threshold, args.date_tolerance_days, args.allow_live,
+            ))
+        elif args.command == "pairs-review":
+            settings = load_settings()
+            setup_logging(settings.log.level, settings.log.file)
+            conn = db.connect()
+            pairs_review(conn)
+    except SystemExit:
+        raise
+    except Exception as exc:
+        logger.exception("%s failed", args.command)
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
