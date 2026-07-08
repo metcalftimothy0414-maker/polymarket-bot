@@ -22,7 +22,7 @@ feeds:
     regions: "us"
 
 strategies:
-  divergence:
+  kalshi_divergence:
     enabled: true
     entry_threshold_cents: 4.0
     fill_timeout_seconds: 60

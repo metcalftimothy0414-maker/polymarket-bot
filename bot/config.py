@@ -46,7 +46,7 @@ class LogConfig(BaseModel):
     file: str = "data/bot.log"
 
 
-class DivergenceStrategyConfig(BaseModel):
+class KalshiDivergenceStrategyConfig(BaseModel):
     enabled: bool = True
     entry_threshold_cents: float = 4.0
     fill_timeout_seconds: int = 60
@@ -71,7 +71,7 @@ class SportsMomentumStrategyConfig(BaseModel):
 
 
 class StrategiesConfig(BaseModel):
-    divergence: DivergenceStrategyConfig
+    kalshi_divergence: KalshiDivergenceStrategyConfig
     sportsbook_divergence: SportsbookDivergenceStrategyConfig
     sports_momentum: SportsMomentumStrategyConfig
 

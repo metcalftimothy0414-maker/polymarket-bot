@@ -6,7 +6,7 @@ is no live-execution code path in this build), and logs everything
 per-strategy so the strategies can be compared and killed on evidence
 rather than vibes.
 
-**Strategy A — `divergence`**: Kalshi mid-price vs. Polymarket US executable
+**Strategy A — `kalshi_divergence`**: Kalshi mid-price vs. Polymarket US executable
 price on manually-verified cross-venue market pairs.
 **Strategy B — `sportsbook_divergence`**: de-vigged consensus odds from The
 Odds API vs. Polymarket US price, same verified-pair discipline.

@@ -7,8 +7,8 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from bot.config import (
-    DivergenceStrategyConfig,
     FeedsConfig,
+    KalshiDivergenceStrategyConfig,
     KalshiFeedConfig,
     LogConfig,
     OddsApiFeedConfig,
@@ -30,7 +30,7 @@ def _settings(tmp_db_path: str) -> Settings:
             odds_api=OddsApiFeedConfig(enabled=True),
         ),
         strategies=StrategiesConfig(
-            divergence=DivergenceStrategyConfig(),
+            kalshi_divergence=KalshiDivergenceStrategyConfig(),
             sportsbook_divergence=SportsbookDivergenceStrategyConfig(),
             sports_momentum=SportsMomentumStrategyConfig(),
         ),

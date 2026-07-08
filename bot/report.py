@@ -6,7 +6,7 @@ import sqlite3
 import statistics
 import sys
 
-STRATEGY_IDS = ["divergence", "sportsbook_divergence", "sports_momentum"]
+STRATEGY_IDS = ["kalshi_divergence", "sportsbook_divergence", "sports_momentum"]
 MIN_OPPORTUNITIES_FOR_KILL_CHECK = 100
 MIN_RESOLVED_FOR_BASE_RATE_TEST = 200
 Z_CRITICAL_95 = 1.96

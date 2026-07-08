@@ -81,10 +81,10 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
 
     strategies = []
     fill_timeouts: dict[str, int] = {}
-    if settings.strategies.divergence.enabled:
-        s = DivergenceStrategy(conn, state, settings.strategies.divergence.entry_threshold_cents)
+    if settings.strategies.kalshi_divergence.enabled:
+        s = DivergenceStrategy(conn, state, settings.strategies.kalshi_divergence.entry_threshold_cents)
         strategies.append(s)
-        fill_timeouts[s.strategy_id] = settings.strategies.divergence.fill_timeout_seconds
+        fill_timeouts[s.strategy_id] = settings.strategies.kalshi_divergence.fill_timeout_seconds
     if settings.strategies.sportsbook_divergence.enabled:
         s = SportsbookDivergenceStrategy(conn, state, settings.strategies.sportsbook_divergence.entry_threshold_cents)
         strategies.append(s)

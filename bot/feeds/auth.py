@@ -1,28 +1,15 @@
 from __future__ import annotations
 
-import base64
-import time
-
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from polymarket_us.auth import create_auth_headers
 
 
 class PolymarketAuth:
-    """Ed25519 request signer per docs.polymarket.us/api-reference/authentication.
-
-    Signed message is f"{timestamp_ms}{method}{path}" (no query string, no body).
-    """
+    """Thin wrapper around the official polymarket-us SDK's request signer
+    (github.com/Polymarket/polymarket-us-python) instead of hand-rolled Ed25519 signing."""
 
     def __init__(self, key_id: str, private_key_b64: str) -> None:
         self.key_id = key_id
-        seed = base64.b64decode(private_key_b64)[:32]
-        self._key = Ed25519PrivateKey.from_private_bytes(seed)
+        self._private_key_b64 = private_key_b64
 
     def headers(self, method: str, path: str) -> dict[str, str]:
-        timestamp = str(int(time.time() * 1000))
-        message = f"{timestamp}{method.upper()}{path}".encode()
-        signature = base64.b64encode(self._key.sign(message)).decode()
-        return {
-            "X-PM-Access-Key": self.key_id,
-            "X-PM-Timestamp": timestamp,
-            "X-PM-Signature": signature,
-        }
+        return create_auth_headers(self.key_id, self._private_key_b64, method.upper(), path)

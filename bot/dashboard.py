@@ -14,7 +14,7 @@ from bot import db
 
 STATIC_DIR = Path(__file__).parent / "static"
 POLL_INTERVAL_SECONDS = 1.5
-STRATEGY_IDS = ["divergence", "sportsbook_divergence", "sports_momentum"]
+STRATEGY_IDS = ["kalshi_divergence", "sportsbook_divergence", "sports_momentum"]
 MAX_TRADE_LOG_ROWS = 60
 MAX_EQUITY_POINTS = 500
 

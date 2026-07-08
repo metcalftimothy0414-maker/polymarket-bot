@@ -22,7 +22,7 @@ from bot.strategies.base import (
 )
 from bot.timeutil import now_iso
 
-STRATEGY_ID = "divergence"
+STRATEGY_ID = "kalshi_divergence"
 
 
 class DivergenceStrategy:
