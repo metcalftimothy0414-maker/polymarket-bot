@@ -11,7 +11,15 @@ REQUIRED_ENV_VARS = ("POLYMARKET_API_KEY_ID", "POLYMARKET_PRIVATE_KEY", "ODDS_AP
 
 
 class PolymarketFeedConfig(BaseModel):
+    # Server-side filter on the /v1/markets "category" field — every sports
+    # market returns category="sports" regardless of league, so this only
+    # ever separates sports from other top-level categories (politics/econ/
+    # weather), never mlb from nba. Do not put league codes here.
     categories: list[str] = ["sports"]
+    # Client-side filter (see bot.feeds.polymarket.league_of) on the league
+    # code embedded in each market's slug — the only field that reliably
+    # distinguishes mlb/nba/ufc/etc. Empty = no league filtering.
+    leagues: list[str] = []
     watchlist_slugs: list[str] = []
     max_markets_per_connection: int = 100
     rest_rate_limit_per_sec: int = 20

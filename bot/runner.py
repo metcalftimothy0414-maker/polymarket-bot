@@ -9,7 +9,7 @@ from bot.config import Settings
 from bot.feeds.auth import PolymarketAuth
 from bot.feeds.kalshi import KalshiFeedClient
 from bot.feeds.odds_api import OddsApiFeedClient
-from bot.feeds.polymarket import PolymarketRestClient, PolymarketRestPoller, PolymarketWSClient
+from bot.feeds.polymarket import PolymarketRestClient, PolymarketRestPoller, PolymarketWSClient, filter_by_leagues
 from bot.paper import (
     FillSimulator,
     check_reversal_exits,
@@ -62,6 +62,7 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
 
     watchlist = settings.feeds.polymarket.watchlist_slugs
     markets = await rest.discover_markets(settings.feeds.polymarket.categories, closed=False)
+    markets = filter_by_leagues(markets, settings.feeds.polymarket.leagues)
     _store_market_metadata(conn, markets)
     if not watchlist:
         watchlist = [m["slug"] for m in markets[: settings.feeds.polymarket.max_markets_per_connection]]

@@ -4,8 +4,9 @@ data_collection_enabled: false
 
 feeds:
   polymarket:
-    categories: ["sports"]       # market discovery filter
-    watchlist_slugs: []          # explicit market slugs to stream; empty = none yet
+    categories: ["sports"]       # server-side filter; every sports market returns "sports" here regardless of league
+    leagues: ["mlb", "f", "fwc"] # client-side filter on slug league-code: MLB (in season) + FIFA World Cup (in progress, highest 24h volume of any league). nba excluded — offseason until October.
+    watchlist_slugs: []          # explicit market slugs to stream; empty = auto-fill from the leagues above
     max_markets_per_connection: 100
     rest_rate_limit_per_sec: 20
     discovery_refresh_seconds: 3600

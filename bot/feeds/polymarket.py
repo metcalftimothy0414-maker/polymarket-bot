@@ -24,6 +24,23 @@ MAX_MARKETS_PER_CONNECTION = 100
 STALE_SECONDS = 30
 
 
+def league_of(market: dict) -> str | None:
+    """The market "category" field is always "sports" (confirmed against live
+    data — it never carries mlb/nba/ufc/etc.), so it can't filter by league.
+    The slug's 2nd hyphen-segment is the only field present on every market
+    (team-based and individual sports alike) that reliably encodes it, e.g.
+    "tec-mlb-nlchamp-2026-09-27-nym" -> "mlb", "aec-ufc-padpim-bensai-..." -> "ufc"."""
+    parts = market.get("slug", "").split("-")
+    return parts[1] if len(parts) >= 2 else None
+
+
+def filter_by_leagues(markets: list[dict], leagues: list[str]) -> list[dict]:
+    if not leagues:
+        return markets
+    wanted = {league.lower() for league in leagues}
+    return [m for m in markets if (league_of(m) or "").lower() in wanted]
+
+
 class PolymarketRestClient:
     def __init__(self, rate_limit_per_sec: float, base_url: str = REST_BASE_URL, timeout: float = 10.0) -> None:
         self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout)
