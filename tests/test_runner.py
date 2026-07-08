@@ -46,7 +46,11 @@ def _settings(tmp_db_path: str) -> Settings:
 class FakeWSStream:
     """Stands in for PolymarketWSClient.stream: just waits for shutdown."""
 
+    def __init__(self) -> None:
+        self.last_market_slugs: list[str] | None = None
+
     async def __call__(self, market_slugs, on_update, stop_event=None):
+        self.last_market_slugs = market_slugs
         if stop_event is not None:
             await stop_event.wait()
 
@@ -79,6 +83,50 @@ class TestRunnerWiring(unittest.TestCase):
                         await asyncio.wait_for(run(settings), timeout=1.0)
                     except asyncio.TimeoutError:
                         pass  # expected — background loops run forever until stopped
+            finally:
+                db_module.connect = original_connect
+                if os.path.exists(db_path):
+                    os.remove(db_path)
+
+        asyncio.run(scenario())
+
+    def test_verified_pair_slug_streamed_even_if_outside_discovery_autofill(self):
+        """A pair can be verified without its Polymarket slug ever landing in the
+        naive first-N discovery auto-fill (or an explicit watchlist) — the runner
+        must union it in regardless, or the strategy that owns it never sees a book."""
+        async def scenario():
+            db_path = "data/test_runner_smoke2.db"
+            import bot.db as db_module
+            original_connect = db_module.connect
+            db_module.connect = lambda: original_connect(db_path)
+            try:
+                conn = original_connect(db_path)
+                conn.execute(
+                    "INSERT INTO pairs (polymarket_slug, kalshi_ticker, similarity_score, verified, created_at) "
+                    "VALUES ('verified-but-undiscovered', 'K-X', 1.0, 1, 'now')"
+                )
+                conn.commit()
+                conn.close()
+
+                settings = _settings(db_path)
+                with patch("bot.runner.PolymarketRestClient") as MockRest, \
+                     patch("bot.runner.PolymarketWSClient") as MockWS, \
+                     patch("bot.runner.KalshiFeedClient") as MockKalshi:
+                    mock_rest = MockRest.return_value
+                    mock_rest.discover_markets = AsyncMock(return_value=[])  # nothing to auto-fill from
+                    mock_rest.aclose = AsyncMock()
+                    fake_stream = FakeWSStream()
+                    mock_ws = MockWS.return_value
+                    mock_ws.stream = fake_stream
+                    mock_kalshi = MockKalshi.return_value
+                    mock_kalshi.poll = AsyncMock(side_effect=lambda *a, **kw: asyncio.sleep(3600))
+
+                    try:
+                        await asyncio.wait_for(run(settings), timeout=1.0)
+                    except asyncio.TimeoutError:
+                        pass
+
+                self.assertIn("verified-but-undiscovered", fake_stream.last_market_slugs)
             finally:
                 db_module.connect = original_connect
                 if os.path.exists(db_path):

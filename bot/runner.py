@@ -68,6 +68,16 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
     if not watchlist:
         watchlist = [m["slug"] for m in markets[: settings.feeds.polymarket.max_markets_per_connection]]
 
+    # A verified pair is useless to Strategy A/B without live book data for its
+    # Polymarket side — union it in regardless of how the rest of the watchlist
+    # was built, so "verify a pair" alone is enough to make it trade-eligible.
+    verified_pm_slugs = {
+        r[0] for r in conn.execute("SELECT DISTINCT polymarket_slug FROM pairs WHERE verified = 1")
+    } | {
+        r[0] for r in conn.execute("SELECT DISTINCT polymarket_slug FROM odds_pairs WHERE verified = 1")
+    }
+    watchlist = list(dict.fromkeys([*verified_pm_slugs, *watchlist]))[: settings.feeds.polymarket.max_markets_per_connection]
+
     stop_event = asyncio.Event()
     use_rest_poll = settings.feeds.polymarket.transport == "rest_poll"
     if use_rest_poll:
@@ -119,7 +129,7 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
                 state.kalshi.update(ticker, book)
 
             background_tasks.append(asyncio.create_task(
-                kalshi_client.poll(kalshi_tickers, on_kalshi_update, settings.feeds.kalshi.poll_seconds, stop_event)
+                kalshi_client.poll(kalshi_tickers, on_kalshi_update, stop_event)
             ))
 
     if settings.feeds.odds_api.enabled:

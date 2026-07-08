@@ -8,11 +8,16 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# NOTE: unlike feeds/polymarket.py, this client has not been exercised against
-# the live API from this dev machine — api.elections.kalshi.com is behind a
-# local TLS-intercepting proxy (NetAlerts) on this network, untrusted, so all
-# calls to it are blocked here by the data_collection_enabled config gate.
-# Smoke-test this against the real API on the VPS before relying on it.
+
+class KalshiResponseError(Exception):
+    """A 2xx response that doesn't have the shape we expect (e.g. an unknown/
+    closed ticker) — distinct from httpx.HTTPError so poll() can treat both as
+    a per-ticker skip-and-continue rather than crashing the whole runner."""
+
+# NOTE: api.elections.kalshi.com is behind a local TLS-intercepting proxy
+# (NetAlerts) on this network and was unreachable for most of this project —
+# confirmed reachable over a VPN. Still exercise this against the real API
+# again before relying on it for anything beyond a manual trial.
 
 
 class KalshiFeedClient:
@@ -25,7 +30,10 @@ class KalshiFeedClient:
     async def get_orderbook(self, ticker: str) -> dict:
         resp = await self._client.get(f"/markets/{ticker}/orderbook")
         resp.raise_for_status()
-        return resp.json()["orderbook"]
+        body = resp.json()
+        if "orderbook" not in body:
+            raise KalshiResponseError(f"no 'orderbook' key in response for {ticker}: {body}")
+        return body["orderbook"]
 
     async def get_markets(self, series_ticker: str, status: str = "open", limit: int = 200) -> list[dict]:
         markets: list[dict] = []
@@ -54,7 +62,7 @@ class KalshiFeedClient:
                 try:
                     book = await self.get_orderbook(ticker)
                     await on_update(ticker, book)
-                except httpx.HTTPError as exc:
+                except (httpx.HTTPError, KalshiResponseError) as exc:
                     logger.warning("Kalshi poll failed for %s: %s", ticker, exc)
             await asyncio.sleep(self.poll_seconds)
 
