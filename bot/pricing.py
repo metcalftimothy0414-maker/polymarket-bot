@@ -31,6 +31,16 @@ def polymarket_book_depth_usd(book: dict, side: str) -> float:
     return sum(float(lvl["px"]["value"]) * float(lvl["qty"]) for lvl in levels)
 
 
+def trade_size_usd(trade: dict) -> float:
+    """The WS trade feed's quantity is already USD-denominated (currency: "USD"
+    on the field itself, confirmed against live prints) — no price multiplication needed."""
+    return float(trade["quantity"]["value"])
+
+
+def rolling_median_trade_size_usd(trade_sizes: list[float]) -> float | None:
+    return statistics.median(trade_sizes) if trade_sizes else None
+
+
 def kalshi_best_yes_bid_ask(orderbook: dict) -> tuple[float | None, float | None]:
     """Kalshi has no separate ask array: best YES ask = 1 - best NO bid
     (binary complementarity — a NO bid at X is economically a YES ask at 1-X).

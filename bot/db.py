@@ -96,7 +96,8 @@ CREATE TABLE IF NOT EXISTS candidates (
     spread_cents REAL,
     depth_usd REAL,
     seconds_remaining REAL,
-    traded INTEGER NOT NULL DEFAULT 0
+    traded INTEGER NOT NULL DEFAULT 0,
+    trade_size_usd REAL
 );
 
 CREATE TABLE IF NOT EXISTS paper_trades (
@@ -134,10 +135,19 @@ CREATE TABLE IF NOT EXISTS market_snapshots (
 """
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """CREATE TABLE IF NOT EXISTS is a no-op on tables that already exist, so a
+    new column needs an explicit, idempotent ALTER for databases created before it."""
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(candidates)")}
+    if "trade_size_usd" not in columns:
+        conn.execute("ALTER TABLE candidates ADD COLUMN trade_size_usd REAL")
+
+
 def connect(db_path: str | Path = "data/bot.db") -> sqlite3.Connection:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.executescript(SCHEMA)
+    _migrate(conn)
     conn.commit()
     return conn

@@ -35,7 +35,7 @@ Build a Python paper-trading harness for Polymarket US that runs three strategie
 - Match on normalized title tokens, resolution date, and category; require similarity above threshold AND matching resolution dates.
 - **Critical**: store matches in a `pairs` table with `verified` defaulting to FALSE. Strategies act only on verified pairs. Provide `bot pairs review` — a CLI that shows both sides' full resolution criteria side by side for manual approval. Subtly different resolution rules are the #1 way divergence strategies lose money.
 
-### 3. `strategies/` — Three modules behind a common interface
+### 3. `strategies/` — Four modules behind a common interface
 
 All implement `scan() -> list[Opportunity]` plus metadata (`strategy_id`, params hash). Every opportunity, candidate, and paper trade row is tagged with `strategy_id` so results never mix.
 
@@ -60,15 +60,26 @@ All implement `scan() -> list[Opportunity]` plus metadata (`strategy_id`, params
 - Skip-log every candidate (traded or not): implied prob, momentum value, spread, depth.
 - Exit: hold to resolution, or early-exit if price reverses through entry by > 4 cents (configurable).
 
+**Strategy D — `large_flow/` (strategy_id: large_flow)**
+- Universe: same watchlist as Strategy C, driven by the public per-market trade feed (Polymarket US WS `SUBSCRIPTION_TYPE_TRADE`) rather than the order book alone.
+- Signal: a trade whose size exceeds N times the market's rolling median trade size (default 10x, configurable via `size_multiple_threshold`); every print on this feed is taker-initiated (crossed the spread against a resting maker order by construction), so "aggressive" reduces to size, not a separate maker/taker classification. Requires a minimum trade-history sample before "median" is meaningful (5 trades) — a market's first few prints of the session don't get evaluated.
+- Direction: enter the same direction as the large trade (buy if the aggressor bought, sell if the aggressor sold).
+- Filters (all must pass, same as Strategy C): spread ≤ 3¢, implied prob 0.40–0.60 at entry, depth ≥ $500 on fill side.
+- **Counterfactual logging (required)**: mid-price at +60s and +300s after every entry, same as C.
+- Skip-log every candidate (traded or not): trade size, median multiple, spread, depth.
+- Exit: hold to resolution or signal close (opportunity closes when no large-flow trigger persists), same open/close/persistence model as A/B/C.
+- Kill criteria: same as the others, including the base-rate test (200+ resolved trades, win rate vs. average entry price).
+- No REST equivalent of the trade feed exists — on the `rest_poll` transport fallback (blocked-WS networks), Strategy D simply never fires, same as running against a dead feed.
+
 ### 4. `paper/` — Simulated execution (shared)
 - Simulate limit orders consistent with each strategy's signal.
-- Fill simulation: an order "fills" only if the live book actually trades through the limit price within the timeout (A/B: 60s; C: 10s). No optimistic fills.
+- Fill simulation: an order "fills" only if the live book actually trades through the limit price within the timeout (A/B: 60s; C/D: 10s). No optimistic fills.
 - Track entry price, $10 default notional, resolution outcome or signal-close exit.
 - Apply the Polymarket US fee schedule to all simulated P&L.
 
 ### 5. `report/` — Metrics + logging
 - Tables: `markets`, `pairs`, `opportunities`, `candidates`, `paper_trades`, `heartbeats`, `errors`.
-- `bot report`: per strategy — opportunities, median persistence, simulated fill rate, win rate, average realized edge after fees, max drawdown, simulated P&L — plus a three-way comparison table.
+- `bot report`: per strategy — opportunities, median persistence, simulated fill rate, win rate, average realized edge after fees, max drawdown, simulated P&L — plus a four-way comparison table.
 - `bot export`: dump trade logs as CSV for weekly offline analysis.
 - Heartbeat row every 5 minutes; structured file logging with rotation.
 
@@ -78,7 +89,7 @@ All implement `scan() -> list[Opportunity]` plus metadata (`strategy_id`, params
 
 **Page structure, top to bottom:**
 1. **Header bar**: bot name in uppercase monospace, connection status dot (green pulsing = live, red = stale), mode badge ("PAPER" in amber — impossible to miss).
-2. **Stats strip**: Simulated P&L (green/red), Win Rate, Open Positions, Opportunities Today. Strategy toggle ALL / DIV / BOOK / MOMO filters every panel; per-strategy P&L shows side by side.
+2. **Stats strip**: Simulated P&L (green/red), Win Rate, Open Positions, Opportunities Today. Strategy toggle ALL / DIV / BOOK / MOMO / FLOW filters every panel; per-strategy P&L shows side by side.
 3. **Live markets panel**: watched pairs — market name, Polymarket price, reference price (Kalshi or de-vigged book), divergence in cents (highlighted green at threshold), 24h volume. Rows flash on update.
 4. **Equity curve**: cumulative simulated P&L per strategy (uPlot or Chart.js, nothing heavy).
 5. **Trade log feed**: reverse-chronological paper trades and opportunities, monospace timestamps, entry/exit, realized edge, strategy tag.
@@ -188,3 +199,32 @@ repo was diffed against this doc and reconciled:
   `bot/paper.py`, `bot/report.py`, `bot/dashboard.py` — kept as one `bot/` package rather than
   6 top-level dirs, since that's what already existed and there was no functional reason to
   split it.
+
+## Watchlist / league filtering fix (post-hoc)
+
+Discovery was only ever surfacing UFC markets in practice. Root cause, confirmed against
+live data: every sports market's `category` field is literally always `"sports"` — it
+never carries `mlb`/`nba`/`ufc`/etc, so `feeds.polymarket.categories` was never able to
+filter by league (`categories=mlb` returns 0 results; `sport=`/`league=`/`leagues=` query
+params are silently no-ops). The only field present on every market — team-based and
+individual sports alike — that reliably encodes the league is the slug's 2nd
+hyphen-segment (`tec-mlb-...` → `mlb`). Added `feeds.polymarket.leagues` as a client-side
+filter (`bot.feeds.polymarket.filter_by_leagues`) applied after discovery. `config.yaml`
+now sets `["mlb", "f", "fwc"]` — MLB (in season) plus FIFA World Cup (in progress,
+currently the single highest-24h-volume league on the exchange) — `nba` excluded
+(offseason until October).
+
+## Strategy D (post-hoc)
+
+Added `large_flow` per an updated spec. Uses the Polymarket US WS's
+`SUBSCRIPTION_TYPE_TRADE` channel (discovered live — not in the REST API surface at all;
+`PolymarketRestPoller`'s `.trades` is always empty, so Strategy D is inert on the
+`rest_poll` transport fallback). Every print on that feed is taker-initiated by
+construction, so "aggressive trade that crosses the spread" reduces to a size check
+against a rolling per-market median (min 5 samples before a multiple means anything).
+`bot/report.py`'s base-rate test was previously only ever wired up for `sports_momentum`
+despite the original spec saying "B and C" — generalized it to run for
+`sportsbook_divergence`, `sports_momentum`, and `large_flow` alike (not
+`kalshi_divergence`, whose edge is priced directly cross-venue in cents). Also fixed a
+stale `divergence` key (pre-rename) in the dashboard's `STRATEGY_LABELS` JS map, found
+while adding the `FLOW` toggle next to it.

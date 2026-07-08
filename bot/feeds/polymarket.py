@@ -18,6 +18,7 @@ REST_BASE_URL = "https://gateway.polymarket.us"
 WS_URL = "wss://api.polymarket.us/v1/ws/markets"
 WS_PATH = "/v1/ws/markets"
 MAX_MARKETS_PER_CONNECTION = 100
+TRADE_HISTORY_PER_MARKET = 50
 
 # Hardcoded risk rule (not configurable): order-book data older than this is
 # treated as unusable, per the "never trade on stale data" requirement.
@@ -86,6 +87,10 @@ class PolymarketRestPoller:
         self.rest_client = rest_client
         self.poll_seconds = poll_seconds
         self.books: dict[str, dict] = {}
+        # There's no public REST trades endpoint, only WS (SUBSCRIPTION_TYPE_TRADE) —
+        # always empty here. Strategy D (large_flow) simply has nothing to act on
+        # while running on this fallback transport, same as it would on a dead feed.
+        self.trades: dict[str, list[dict]] = {}
         self._last_update: dict[str, float] = {}
 
     def is_stale(self, slug: str, now: float | None = None) -> bool:
@@ -115,6 +120,9 @@ class PolymarketWSClient:
         self.auth = auth
         self.ws_url = ws_url
         self.books: dict[str, dict] = {}
+        # Bounded rolling window per market — enough for Strategy D's rolling-median
+        # baseline without unbounded memory growth on a long-running connection.
+        self.trades: dict[str, list[dict]] = {}
         self._last_update: dict[str, float] = {}
 
     def is_stale(self, slug: str, now: float | None = None) -> bool:
@@ -144,14 +152,25 @@ class PolymarketWSClient:
                             "marketSlugs": market_slugs,
                         }
                     }))
+                    await ws.send(json.dumps({
+                        "subscribe": {
+                            "requestId": "trade-sub-1",
+                            "subscriptionType": "SUBSCRIPTION_TYPE_TRADE",
+                            "marketSlugs": market_slugs,
+                        }
+                    }))
                     async for raw in ws:
-                        data = json.loads(raw).get("marketData")
-                        if not data:
-                            continue
-                        slug = data["marketSlug"]
-                        self.books[slug] = data
-                        self._last_update[slug] = time.monotonic()
-                        await on_update(data)
+                        msg = json.loads(raw)
+                        if (data := msg.get("marketData")) is not None:
+                            slug = data["marketSlug"]
+                            self.books[slug] = data
+                            self._last_update[slug] = time.monotonic()
+                            await on_update(data)
+                        elif (trade := msg.get("trade")) is not None:
+                            slug = trade["marketSlug"]
+                            history = self.trades.setdefault(slug, [])
+                            history.append(trade)
+                            del history[:-TRADE_HISTORY_PER_MARKET]
             except (websockets.exceptions.ConnectionClosed, OSError, asyncio.TimeoutError) as exc:
                 logger.warning("Polymarket WS disconnected (%s); reconnecting in %.0fs", exc, backoff)
                 await asyncio.sleep(backoff)

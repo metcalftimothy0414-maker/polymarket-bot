@@ -41,6 +41,14 @@ strategies:
     max_implied_prob: 0.60
     min_depth_usd: 500
     fill_timeout_seconds: 10
+  large_flow:
+    enabled: true
+    size_multiple_threshold: 10.0   # trade size vs. the market's rolling median trade size
+    max_spread_cents: 3
+    min_implied_prob: 0.40
+    max_implied_prob: 0.60
+    min_depth_usd: 500
+    fill_timeout_seconds: 10
 
 position_notional_usd: 10
 max_concurrent_positions: 5     # global, across strategies

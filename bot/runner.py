@@ -23,6 +23,7 @@ from bot.paper import (
 )
 from bot.state import MarketState
 from bot.strategies.divergence import DivergenceStrategy
+from bot.strategies.large_flow import LargeFlowStrategy
 from bot.strategies.sports_momentum import SportsMomentumStrategy
 from bot.strategies.sportsbook_divergence import SportsbookDivergenceStrategy
 
@@ -98,6 +99,14 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
         )
         strategies.append(s)
         fill_timeouts[s.strategy_id] = smc.fill_timeout_seconds
+    if settings.strategies.large_flow.enabled:
+        lfc = settings.strategies.large_flow
+        s = LargeFlowStrategy(
+            conn, state, watchlist, lfc.size_multiple_threshold,
+            lfc.max_spread_cents, lfc.min_implied_prob, lfc.max_implied_prob, lfc.min_depth_usd,
+        )
+        strategies.append(s)
+        fill_timeouts[s.strategy_id] = lfc.fill_timeout_seconds
 
     background_tasks = [polymarket_task]
 

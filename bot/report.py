@@ -6,7 +6,10 @@ import sqlite3
 import statistics
 import sys
 
-STRATEGY_IDS = ["kalshi_divergence", "sportsbook_divergence", "sports_momentum"]
+STRATEGY_IDS = ["kalshi_divergence", "sportsbook_divergence", "sports_momentum", "large_flow"]
+# kalshi_divergence's edge is priced directly cross-venue in cents, not from a
+# win-rate-vs-entry-price comparison — the base-rate test doesn't apply to it.
+BASE_RATE_TEST_STRATEGY_IDS = ["sportsbook_divergence", "sports_momentum", "large_flow"]
 MIN_OPPORTUNITIES_FOR_KILL_CHECK = 100
 MIN_RESOLVED_FOR_BASE_RATE_TEST = 200
 Z_CRITICAL_95 = 1.96
@@ -125,11 +128,12 @@ def _fmt(value, spec: str = ".2f", suffix: str = "") -> str:
 
 def print_report(conn: sqlite3.Connection) -> None:
     all_metrics = {sid: strategy_metrics(conn, sid) for sid in STRATEGY_IDS}
-    base_rate = base_rate_test(conn, "sports_momentum")
+    base_rates = {sid: base_rate_test(conn, sid) for sid in BASE_RATE_TEST_STRATEGY_IDS}
 
     for sid in STRATEGY_IDS:
         m = all_metrics[sid]
-        is_dead, reasons = evaluate_kill_criteria(m, base_rate if sid == "sports_momentum" else None)
+        base_rate = base_rates.get(sid)
+        is_dead, reasons = evaluate_kill_criteria(m, base_rate)
         print(f"=== {sid}{' [DEAD]' if is_dead else ''} ===")
         print(f"  opportunities detected:     {m['opportunities_detected']}")
         print(f"  median persistence:         {_fmt(m['median_persistence_seconds'], '.1f', 's')}")
@@ -139,7 +143,7 @@ def print_report(conn: sqlite3.Connection) -> None:
         print(f"  max drawdown:               ${_fmt(m['max_drawdown_usd'])}")
         print(f"  total simulated P&L:        ${_fmt(m['total_pnl_usd'])}")
         print(f"  open positions:             {m['open_positions']}")
-        if sid == "sports_momentum" and base_rate.get("sufficient"):
+        if base_rate and base_rate.get("sufficient"):
             print(f"  base-rate test: win_rate={base_rate['win_rate']:.1%} vs avg_entry={base_rate['avg_entry_price']:.1%} "
                   f"z={base_rate['z_score']:.2f} distinguishable={base_rate['distinguishable']}")
         if reasons:

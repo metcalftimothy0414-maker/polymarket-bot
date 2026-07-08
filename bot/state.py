@@ -32,6 +32,7 @@ class PolymarketBookSource(Protocol):
     for a network that blocks the authenticated WS handshake) satisfies this."""
 
     books: dict[str, dict]
+    trades: dict[str, list[dict]]
 
     def is_stale(self, slug: str, now: float | None = None) -> bool: ...
 
@@ -49,3 +50,6 @@ class MarketState:
 
     def polymarket_is_stale(self, slug: str) -> bool:
         return self.polymarket_ws.is_stale(slug)
+
+    def polymarket_trades(self, slug: str) -> list[dict]:
+        return self.polymarket_ws.trades.get(slug, [])

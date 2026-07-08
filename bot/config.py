@@ -78,10 +78,21 @@ class SportsMomentumStrategyConfig(BaseModel):
     fill_timeout_seconds: int = 10
 
 
+class LargeFlowStrategyConfig(BaseModel):
+    enabled: bool = True
+    size_multiple_threshold: float = 10.0
+    max_spread_cents: float = 3
+    min_implied_prob: float = 0.40
+    max_implied_prob: float = 0.60
+    min_depth_usd: float = 500
+    fill_timeout_seconds: int = 10
+
+
 class StrategiesConfig(BaseModel):
     kalshi_divergence: KalshiDivergenceStrategyConfig
     sportsbook_divergence: SportsbookDivergenceStrategyConfig
     sports_momentum: SportsMomentumStrategyConfig
+    large_flow: LargeFlowStrategyConfig
 
 
 class Settings(BaseModel):

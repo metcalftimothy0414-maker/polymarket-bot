@@ -1,6 +1,6 @@
 # polymarket-bot
 
-Phase 1 paper-trading harness for Polymarket US. Runs three strategies in
+Phase 1 paper-trading harness for Polymarket US. Runs four strategies in
 parallel against live order books, simulates fills (no real orders — there
 is no live-execution code path in this build), and logs everything
 per-strategy so the strategies can be compared and killed on evidence
@@ -12,6 +12,9 @@ price on manually-verified cross-venue market pairs.
 Odds API vs. Polymarket US price, same verified-pair discipline.
 **Strategy C — `sports_momentum`**: short-window momentum on the Polymarket
 contract's own price, single-venue, mechanically filtered.
+**Strategy D — `large_flow`**: follows abnormally large trades (10x+ the
+market's rolling median trade size, configurable) off the public trade feed,
+same mechanical filters as C.
 
 ## Architecture
 
