@@ -110,6 +110,27 @@ class TestFindCandidatePairs(unittest.TestCase):
         )
         self.assertEqual(len(matched_at_two_day_tolerance), 1)  # widening tolerance still uses the real date
 
+    def test_one_kalshi_ticker_matching_two_polymarket_listings_is_dropped(self):
+        # A team plays the same opponent on back-to-back days (a series);
+        # a near-midnight-ET game can round to either UTC calendar date.
+        # One Kalshi ticker satisfying token+date match against two
+        # DIFFERENT Polymarket listings for the same matchup is ambiguous
+        # (which game does the ticker actually refer to?) and must be
+        # dropped entirely, not guessed at.
+        two_games_same_matchup = [
+            dict(PM_MARKETS[0], slug="aec-nba-lal-bos-2026-01-10-a"),
+            dict(PM_MARKETS[0], slug="aec-nba-lal-bos-2026-01-10-b"),
+        ]
+        proposals = find_candidate_pairs(two_games_same_matchup, KALSHI_MARKETS, similarity_threshold=0.5)
+        matched_tickers = {p.kalshi_ticker for p in proposals}
+        self.assertNotIn("KXNBA-26JAN10LALBOS", matched_tickers)
+
+    def test_unambiguous_matches_survive_the_ambiguity_filter(self):
+        proposals = find_candidate_pairs(PM_MARKETS, KALSHI_MARKETS, similarity_threshold=0.5)
+        matched = {(p.polymarket_slug, p.kalshi_ticker) for p in proposals}
+        self.assertIn(("aec-nba-lal-bos-2026-01-10", "KXNBA-26JAN10LALBOS"), matched)
+        self.assertIn(("aec-nba-mia-nyk-2026-01-10", "KXNBA-26JAN10MIANYK"), matched)
+
 
 class TestStorePairs(unittest.TestCase):
     def setUp(self):

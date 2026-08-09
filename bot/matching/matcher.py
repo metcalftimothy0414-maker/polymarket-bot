@@ -116,7 +116,29 @@ def find_candidate_pairs(
                 ))
 
     proposals.sort(key=lambda p: p.similarity_score, reverse=True)
-    return proposals
+    return _drop_ambiguous_pairs(proposals)
+
+
+def _drop_ambiguous_pairs(proposals: list[ProposedPair]) -> list[ProposedPair]:
+    """A team can play the same opponent on consecutive days (a series), and
+    a game near midnight ET can land on either UTC calendar date depending
+    on start time — so one Kalshi ticker can satisfy the date+token check
+    against more than one DISTINCT Polymarket market for the same matchup
+    (confirmed live: 'Milwaukee vs San Diego' on two different days both
+    matched the same Kalshi ticker). There's no way to tell from title+date
+    alone which specific game a ticker refers to in that situation, so
+    exclude the whole ambiguous group rather than guess — a wrong guess
+    here is a false pair, not a rescheduling nuance."""
+    kalshi_to_slugs: dict[str, set[str]] = {}
+    slug_to_kalshis: dict[str, set[str]] = {}
+    for p in proposals:
+        kalshi_to_slugs.setdefault(p.kalshi_ticker, set()).add(p.polymarket_slug)
+        slug_to_kalshis.setdefault(p.polymarket_slug, set()).add(p.kalshi_ticker)
+
+    return [
+        p for p in proposals
+        if len(kalshi_to_slugs[p.kalshi_ticker]) == 1 and len(slug_to_kalshis[p.polymarket_slug]) == 1
+    ]
 
 
 def _long_team_name(pm_market: dict) -> str | None:
