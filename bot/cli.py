@@ -102,6 +102,11 @@ def main() -> None:
     )
     scan.add_argument("--similarity-threshold", type=float, default=0.6)
     scan.add_argument("--date-tolerance-days", type=int, default=0)
+    scan.add_argument(
+        "--match-category", default=None, choices=["sports", "economic_indicator", "politics_elections", "numeric_threshold", "generic"],
+        help="Which normalizer to match with (bot.matching.normalizers) — distinct from --polymarket-category, "
+             "which is the raw Polymarket API category filter. Defaults to 'sports' if omitted.",
+    )
     scan.add_argument("--allow-live", action="store_true", help="Override data_collection_enabled=false for this run")
 
     sub.add_parser("pairs-review", help="Interactively approve/reject proposed pairs")
@@ -145,7 +150,7 @@ def main() -> None:
             asyncio.run(pairs_scan(
                 settings, args.polymarket_category, args.kalshi_series,
                 args.similarity_threshold, args.date_tolerance_days, args.allow_live,
-                polymarket_leagues=args.polymarket_league,
+                polymarket_leagues=args.polymarket_league, match_category=args.match_category,
             ))
         elif args.command == "pairs-review":
             settings = load_settings()

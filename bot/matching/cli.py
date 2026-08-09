@@ -11,7 +11,7 @@ from bot.feeds.kalshi import KalshiFeedClient
 from bot.feeds.odds_api import OddsApiFeedClient
 from bot.feeds.polymarket import PolymarketRestClient, filter_by_leagues
 from bot.matching.matcher import (
-    find_candidate_pairs,
+    find_candidate_pairs_by_category,
     find_odds_api_pairs,
     store_odds_pairs,
     store_pairs,
@@ -30,6 +30,7 @@ async def pairs_scan(
     date_tolerance_days: int,
     allow_live: bool,
     polymarket_leagues: list[str] | None = None,
+    match_category: str | None = None,
 ) -> None:
     if not settings.data_collection_enabled and not allow_live:
         print(
@@ -50,7 +51,8 @@ async def pairs_scan(
         # vs MLB "Kansas City" both matching a Kalshi baseball market).
         if polymarket_leagues:
             pm_markets = filter_by_leagues(pm_markets, polymarket_leagues)
-        if polymarket_category == "sports":
+        match_category = match_category or "sports"
+        if match_category == "sports":
             # Kalshi's KX*GAME series are plain moneyline ("Team A vs Team
             # B Winner?") — Polymarket's sports category also lists spread/
             # total/prop/season-futures markets for the same two teams,
@@ -72,8 +74,8 @@ async def pairs_scan(
     print(f"Polymarket US: {len(pm_markets)} open markets in category={polymarket_category!r}")
     print(f"Kalshi: {len(kalshi_markets)} open markets in series={kalshi_series_ticker!r}")
 
-    proposals = find_candidate_pairs(pm_markets, kalshi_markets, similarity_threshold, date_tolerance_days)
-    print(f"Found {len(proposals)} candidate pairs above similarity_threshold={similarity_threshold}")
+    proposals = find_candidate_pairs_by_category(match_category, pm_markets, kalshi_markets, similarity_threshold, date_tolerance_days)
+    print(f"Found {len(proposals)} candidate pairs above similarity_threshold={similarity_threshold} (category={match_category!r})")
 
     conn = db.connect()
     inserted = store_pairs(conn, proposals)

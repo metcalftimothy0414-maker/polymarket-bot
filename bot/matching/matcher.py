@@ -1,22 +1,18 @@
 from __future__ import annotations
 
 import datetime as dt
-import re
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-# Generic words that carry no team/event-identifying signal; stripping them
-# sharpens the token-overlap score toward what actually distinguishes one
-# matchup from another (team names, not "who wins the game").
-STOPWORDS = {
-    "the", "a", "an", "vs", "vs.", "v", "at", "in", "on", "of", "to",
-    "will", "game", "match", "moneyline", "winner", "wins", "win", "beat", "who", "be",
-}
+from bot.matching.normalizers import normalize_tokens, normalizer_for
 
-
-def normalize_tokens(text: str) -> set[str]:
-    text = re.sub(r"[^a-z0-9\s]", " ", text.lower())
-    return {t for t in text.split() if t and t not in STOPWORDS}
+# Re-exported for backward compatibility — callers/tests that imported
+# these directly from bot.matching.matcher before the §3 category-expansion
+# refactor still work unchanged.
+__all__ = [
+    "ProposedPair", "ProposedOddsPair", "find_candidate_pairs", "find_candidate_pairs_by_category",
+    "find_odds_api_pairs", "store_pairs", "store_odds_pairs", "normalize_tokens", "jaccard", "token_overlap_score",
+]
 
 
 def jaccard(a: set[str], b: set[str]) -> float:
@@ -45,6 +41,12 @@ def _date_only(iso_str: str | None) -> str | None:
     return iso_str[:10] if iso_str else None
 
 
+def _dates_within_tolerance(pm_date: str, k_date: str, date_tolerance_days: int) -> bool:
+    if date_tolerance_days == 0:
+        return pm_date == k_date
+    return abs((dt.date.fromisoformat(pm_date) - dt.date.fromisoformat(k_date)).days) <= date_tolerance_days
+
+
 @dataclass
 class ProposedPair:
     polymarket_slug: str
@@ -56,52 +58,39 @@ class ProposedPair:
     kalshi_title: str
     kalshi_rules: str
     kalshi_close_date: str | None
+    category: str = "sports"
 
 
-def find_candidate_pairs(
+def find_candidate_pairs_by_category(
+    category: str,
     polymarket_markets: list[dict],
     kalshi_markets: list[dict],
     similarity_threshold: float = 0.6,
     date_tolerance_days: int = 0,
 ) -> list[ProposedPair]:
-    """Match markets across venues on token overlap AND matching resolution date.
-
-    Both conditions are required — title similarity alone produces false
-    matches between same-day games with similar phrasing, and date alone
-    matches unrelated events on a busy sports day.
+    """Generic candidate generation: per-category normalizers turn each raw
+    market into comparable tokens+date (bot.matching.normalizers), the
+    scoring and ambiguity-rejection here are shared across every category.
+    Both token overlap AND matching resolution date are required — title
+    similarity alone produces false matches between same-day events with
+    similar phrasing, and date alone matches unrelated events on a busy day.
     """
-    pm_indexed = [
-        # gameStartTime is the actual event date; endDate is a resolution deadline
-        # that can be ~2 weeks after the event (confirmed against live markets) —
-        # matching on endDate would silently never align with another venue's game date.
-        (m, normalize_tokens(m["question"]), _date_only(m.get("gameStartTime") or m.get("endDate")))
-        for m in polymarket_markets
-    ]
+    normalizer = normalizer_for(category)
+    pm_indexed = [(m, normalizer.normalize_polymarket(m)) for m in polymarket_markets]
 
     proposals: list[ProposedPair] = []
     for km in kalshi_markets:
-        k_text = f"{km.get('title', '')} {km.get('subtitle', '')}".strip()
-        k_tokens = normalize_tokens(k_text)
-        # occurrence_datetime is the actual game/event time. close_time and
-        # expiration_time are the administrative settlement deadline, which
-        # for sports markets carries a ~2-3 day postponement-rescheduling
-        # buffer past the real game (confirmed live against KXMLBGAME:
-        # occurrence_datetime 08-10, close_time 08-13/14). Matching on
-        # close_time silently pairs a market against the WRONG game in a
-        # multi-game series once that buffer happens to land inside
-        # date_tolerance_days of a different, later game on the other venue.
-        k_date = _date_only(km.get("occurrence_datetime") or km.get("close_time") or km.get("expiration_time"))
+        k_norm = normalizer.normalize_kalshi(km)
+        if k_norm.date is None:
+            continue
 
-        for pm, pm_tokens, pm_date in pm_indexed:
-            if pm_date is None or k_date is None:
+        for pm, pm_norm in pm_indexed:
+            if pm_norm.date is None:
                 continue
-            if date_tolerance_days == 0:
-                if pm_date != k_date:
-                    continue
-            elif abs((dt.date.fromisoformat(pm_date) - dt.date.fromisoformat(k_date)).days) > date_tolerance_days:
+            if not _dates_within_tolerance(pm_norm.date, k_norm.date, date_tolerance_days):
                 continue
 
-            score = token_overlap_score(pm_tokens, k_tokens)
+            score = token_overlap_score(pm_norm.tokens, k_norm.tokens)
             if score >= similarity_threshold:
                 proposals.append(ProposedPair(
                     polymarket_slug=pm["slug"],
@@ -110,13 +99,28 @@ def find_candidate_pairs(
                     polymarket_question=pm["question"],
                     polymarket_description=pm.get("description", ""),
                     polymarket_end_date=pm.get("endDate"),
-                    kalshi_title=k_text,
+                    kalshi_title=k_norm.text,
                     kalshi_rules=f"{km.get('rules_primary', '')} {km.get('rules_secondary', '')}".strip(),
                     kalshi_close_date=km.get("close_time"),
+                    category=category,
                 ))
 
     proposals.sort(key=lambda p: p.similarity_score, reverse=True)
     return _drop_ambiguous_pairs(proposals)
+
+
+def find_candidate_pairs(
+    polymarket_markets: list[dict],
+    kalshi_markets: list[dict],
+    similarity_threshold: float = 0.6,
+    date_tolerance_days: int = 0,
+) -> list[ProposedPair]:
+    """Sports-category matching — kept as its own entry point (rather than
+    folded into callers passing category="sports" everywhere) since this
+    was the matcher's only behavior before the §3 category-expansion
+    refactor and every existing caller/test still calls it by this name.
+    Byte-identical output to the pre-refactor implementation."""
+    return find_candidate_pairs_by_category("sports", polymarket_markets, kalshi_markets, similarity_threshold, date_tolerance_days)
 
 
 def _drop_ambiguous_pairs(proposals: list[ProposedPair]) -> list[ProposedPair]:
@@ -235,10 +239,10 @@ def store_pairs(conn: sqlite3.Connection, pairs: list[ProposedPair]) -> int:
         cur = conn.execute(
             "INSERT OR IGNORE INTO pairs "
             "(polymarket_slug, kalshi_ticker, similarity_score, polymarket_question, polymarket_description, "
-            "polymarket_end_date, kalshi_title, kalshi_rules, kalshi_close_date, verified, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
+            "polymarket_end_date, kalshi_title, kalshi_rules, kalshi_close_date, category, verified, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
             (p.polymarket_slug, p.kalshi_ticker, p.similarity_score, p.polymarket_question, p.polymarket_description,
-             p.polymarket_end_date, p.kalshi_title, p.kalshi_rules, p.kalshi_close_date, now),
+             p.polymarket_end_date, p.kalshi_title, p.kalshi_rules, p.kalshi_close_date, p.category, now),
         )
         inserted += cur.rowcount
     conn.commit()

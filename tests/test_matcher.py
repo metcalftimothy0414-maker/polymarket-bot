@@ -1,8 +1,9 @@
+import dataclasses
 import sqlite3
 import unittest
 
 from bot.db import SCHEMA
-from bot.matching.matcher import find_candidate_pairs, jaccard, normalize_tokens, store_pairs
+from bot.matching.matcher import find_candidate_pairs, find_candidate_pairs_by_category, jaccard, normalize_tokens, store_pairs
 
 PM_MARKETS = [
     {
@@ -130,6 +131,31 @@ class TestFindCandidatePairs(unittest.TestCase):
         matched = {(p.polymarket_slug, p.kalshi_ticker) for p in proposals}
         self.assertIn(("aec-nba-lal-bos-2026-01-10", "KXNBA-26JAN10LALBOS"), matched)
         self.assertIn(("aec-nba-mia-nyk-2026-01-10", "KXNBA-26JAN10MIANYK"), matched)
+
+
+class TestCategoryExpansionRegression(unittest.TestCase):
+    """§3 acceptance criterion: sports pair count and match results are
+    byte-identical to before the category-agnostic matcher refactor.
+    find_candidate_pairs is now a thin wrapper over
+    find_candidate_pairs_by_category("sports", ...) — this proves the
+    wrapper introduces zero behavioral difference, not just that both
+    happen to produce the same count."""
+
+    def test_find_candidate_pairs_is_byte_identical_to_explicit_sports_category(self):
+        via_wrapper = find_candidate_pairs(PM_MARKETS, KALSHI_MARKETS, similarity_threshold=0.5, date_tolerance_days=0)
+        via_category = find_candidate_pairs_by_category(
+            "sports", PM_MARKETS, KALSHI_MARKETS, similarity_threshold=0.5, date_tolerance_days=0,
+        )
+        self.assertEqual(len(via_wrapper), 2)  # sanity: the fixture actually produces matches
+        self.assertEqual(
+            [dataclasses.asdict(p) for p in via_wrapper],
+            [dataclasses.asdict(p) for p in via_category],
+        )
+
+    def test_sports_pairs_are_tagged_with_sports_category(self):
+        proposals = find_candidate_pairs(PM_MARKETS, KALSHI_MARKETS, similarity_threshold=0.5)
+        self.assertTrue(proposals)
+        self.assertTrue(all(p.category == "sports" for p in proposals))
 
 
 class TestStorePairs(unittest.TestCase):
