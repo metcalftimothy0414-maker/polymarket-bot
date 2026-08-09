@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 import logging
+from decimal import Decimal
 
 from bot import db
 from bot.config import Settings
+from bot.edge import RiskParams
 from bot.feeds.auth import PolymarketAuth
 from bot.feeds.kalshi import KalshiFeedClient
 from bot.feeds.odds_api import OddsApiFeedClient
@@ -22,6 +24,8 @@ from bot.paper import (
 )
 from bot.state import MarketState
 from bot.strategies.divergence import DivergenceStrategy
+from bot.strategies.locked_pair_arb import LockedPairArbStrategy
+from bot.strategies.locked_pair_arb.settlement import resolve_pair_positions
 from bot.strategies.sportsbook_divergence import SportsbookDivergenceStrategy
 
 logger = logging.getLogger(__name__)
@@ -98,8 +102,24 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
         s = SportsbookDivergenceStrategy(conn, state, settings.strategies.sportsbook_divergence.entry_threshold_cents)
         strategies.append(s)
         fill_timeouts[s.strategy_id] = settings.strategies.sportsbook_divergence.fill_timeout_seconds
+
+    locked_pair_arb_strategy = None
+    lpa = settings.strategies.locked_pair_arb
+    if lpa.enabled:
+        locked_pair_arb_strategy = LockedPairArbStrategy(
+            conn, state,
+            min_abs_edge=Decimal(str(lpa.min_abs_edge_cents / 100)),
+            hurdle_annual_return=Decimal(str(lpa.hurdle_annual_return)),
+            min_viable_size=lpa.min_viable_size,
+            max_size_per_pair=lpa.max_size_per_pair,
+            notional_usd_cap=Decimal(str(lpa.notional_usd_cap)),
+            settlement_lag_days=Decimal(str(lpa.settlement_lag_days)),
+            risk=RiskParams(p_divergence=Decimal(str(lpa.p_divergence)), asymmetry=Decimal(str(lpa.asymmetry))),
+        )
+
     background_tasks = [polymarket_task]
 
+    kalshi_client = None
     if settings.feeds.kalshi.enabled:
         kalshi_tickers = [r[0] for r in conn.execute("SELECT DISTINCT kalshi_ticker FROM pairs WHERE verified = 1")]
         if kalshi_tickers:
@@ -127,6 +147,7 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
 
     background_tasks.append(asyncio.create_task(_scan_loop(
         conn, state, strategies, fill_simulator, fill_timeouts, rest, settings, stop_event,
+        locked_pair_arb_strategy, kalshi_client,
     )))
     background_tasks.append(asyncio.create_task(_heartbeat_loop(conn, stop_event)))
 
@@ -140,7 +161,10 @@ async def _on_polymarket_update(_data: dict) -> None:
     pass  # MarketState reads straight from ws.books; nothing extra to do per-tick
 
 
-async def _scan_loop(conn, state, strategies, fill_simulator, fill_timeouts, rest, settings, stop_event) -> None:
+async def _scan_loop(
+    conn, state, strategies, fill_simulator, fill_timeouts, rest, settings, stop_event,
+    locked_pair_arb_strategy=None, kalshi_client=None,
+) -> None:
     while not stop_event.is_set():
         try:
             for strategy in strategies:
@@ -159,6 +183,15 @@ async def _scan_loop(conn, state, strategies, fill_simulator, fill_timeouts, res
                         open_position(conn, opp, fill_price, settings.position_notional_usd)
                     else:
                         record_unfilled(conn, opp, settings.position_notional_usd)
+
+            if locked_pair_arb_strategy is not None:
+                # Self-contained: unlike A/B above, scan() both detects and
+                # opens (Mode A fires against the book it just walked — see
+                # bot/strategies/locked_pair_arb/__init__.py) so there's no
+                # generic fill_simulator step here.
+                await locked_pair_arb_strategy.scan()
+                if kalshi_client is not None:
+                    await resolve_pair_positions(conn, kalshi_client, rest, settings.feeds.polymarket.categories)
 
             close_positions_for_closed_opportunities(conn, state)
             await resolve_closed_markets(conn, rest, settings.feeds.polymarket.categories)

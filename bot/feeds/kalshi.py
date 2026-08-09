@@ -35,6 +35,14 @@ class KalshiFeedClient:
             raise KalshiResponseError(f"no 'orderbook' key in response for {ticker}: {body}")
         return body["orderbook"]
 
+    async def get_market(self, ticker: str) -> dict:
+        resp = await self._client.get(f"/markets/{ticker}")
+        resp.raise_for_status()
+        body = resp.json()
+        if "market" not in body:
+            raise KalshiResponseError(f"no 'market' key in response for {ticker}: {body}")
+        return body["market"]
+
     async def get_markets(self, series_ticker: str, status: str = "open", limit: int = 200) -> list[dict]:
         markets: list[dict] = []
         cursor = None

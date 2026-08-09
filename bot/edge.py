@@ -100,6 +100,8 @@ class WalkResult:
     total_fee: Decimal
     net_edge_total: Decimal
     net_edge_per_contract: Decimal | None
+    total_fee_a: Decimal = Decimal(0)
+    total_fee_b: Decimal = Decimal(0)
 
 
 def executable_depth(
@@ -120,7 +122,7 @@ def executable_depth(
     used_a = used_b = 0
     size = 0
     cost_a = cost_b = Decimal(0)
-    total_fee = Decimal(0)
+    fee_a_total = fee_b_total = Decimal(0)
 
     while ia < len(levels_a) and ib < len(levels_b):
         la, lb = levels_a[ia], levels_b[ib]
@@ -133,7 +135,8 @@ def executable_depth(
         size += 1
         cost_a += la.price
         cost_b += lb.price
-        total_fee += fee_a + fee_b
+        fee_a_total += fee_a
+        fee_b_total += fee_b
         used_a += 1
         used_b += 1
         if used_a >= la.size:
@@ -146,8 +149,12 @@ def executable_depth(
     if size == 0:
         return WalkResult(0, None, None, Decimal(0), Decimal(0), None)
 
+    total_fee = fee_a_total + fee_b_total
     net_edge_total = Decimal(size) - cost_a - cost_b - total_fee
-    return WalkResult(size, cost_a / size, cost_b / size, total_fee, net_edge_total, net_edge_total / size)
+    return WalkResult(
+        size, cost_a / size, cost_b / size, total_fee, net_edge_total, net_edge_total / size,
+        total_fee_a=fee_a_total, total_fee_b=fee_b_total,
+    )
 
 
 @dataclass

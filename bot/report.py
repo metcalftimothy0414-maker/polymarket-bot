@@ -126,6 +126,53 @@ def _fmt(value, spec: str = ".2f", suffix: str = "") -> str:
     return f"{value:{spec}}{suffix}" if value is not None else "n/a"
 
 
+def locked_pair_arb_metrics(conn: sqlite3.Connection) -> dict:
+    """Distinct from strategy_metrics: locked_pair_arb doesn't write to
+    paper_trades (two-leg positions live in pair_positions/settlements), and
+    its rejection log (pair_evaluations) is itself the primary research
+    output per build prompt §7.4."""
+    conn.row_factory = sqlite3.Row
+    evals = conn.execute("SELECT * FROM pair_evaluations").fetchall()
+    settled = conn.execute("SELECT * FROM settlements").fetchall()
+    open_positions = conn.execute("SELECT COUNT(*) FROM pair_positions WHERE status = 'open'").fetchone()[0]
+
+    reject_reasons: dict[str, int] = {}
+    for e in evals:
+        if not e["traded"]:
+            reject_reasons[e["binding_constraint"]] = reject_reasons.get(e["binding_constraint"], 0) + 1
+
+    diverged = sum(1 for s in settled if s["diverged"])
+    edge_errors = [s["edge_error_usd"] for s in settled if s["edge_error_usd"] is not None]
+    total_pnl = sum(s["realized_pnl_usd"] for s in settled)
+
+    return {
+        "evaluations": len(evals),
+        "trades_opened": sum(1 for e in evals if e["traded"]),
+        "reject_reasons": reject_reasons,
+        "open_positions": open_positions,
+        "settled": len(settled),
+        "diverged": diverged,
+        "median_edge_error_usd": statistics.median(edge_errors) if edge_errors else None,
+        "total_pnl_usd": total_pnl,
+    }
+
+
+def print_locked_pair_arb_report(conn: sqlite3.Connection) -> None:
+    m = locked_pair_arb_metrics(conn)
+    print("=== locked_pair_arb ===")
+    print(f"  evaluations logged:         {m['evaluations']}")
+    print(f"  trades opened:              {m['trades_opened']}")
+    print(f"  open positions:             {m['open_positions']}")
+    print(f"  settled:                    {m['settled']} (diverged: {m['diverged']})")
+    print(f"  median predicted-vs-realized edge error: {_fmt(m['median_edge_error_usd'], '.4f', ' usd/contract')}")
+    print(f"  total realized P&L:         ${_fmt(m['total_pnl_usd'])}")
+    if m["reject_reasons"]:
+        print("  rejection breakdown (the research dataset):")
+        for reason, count in sorted(m["reject_reasons"].items(), key=lambda kv: -kv[1]):
+            print(f"    {reason:<35} {count}")
+    print()
+
+
 def print_report(conn: sqlite3.Connection) -> None:
     all_metrics = {sid: strategy_metrics(conn, sid) for sid in STRATEGY_IDS}
     base_rates = {sid: base_rate_test(conn, sid) for sid in BASE_RATE_TEST_STRATEGY_IDS}
@@ -150,6 +197,8 @@ def print_report(conn: sqlite3.Connection) -> None:
             for r in reasons:
                 print(f"    -> {r}")
         print()
+
+    print_locked_pair_arb_report(conn)
 
     print("=== side-by-side comparison ===")
     header = f"{'metric':<28}" + "".join(f"{sid:>22}" for sid in STRATEGY_IDS)

@@ -1,6 +1,38 @@
 from __future__ import annotations
 
 import statistics
+from decimal import Decimal
+
+from bot.edge import BookLevel
+
+
+def polymarket_yes_ask_depth(book: dict) -> list[BookLevel]:
+    """Full-depth ladder for buying YES on Polymarket, cheapest first."""
+    return [BookLevel(Decimal(str(lvl["px"]["value"])), int(float(lvl["qty"]))) for lvl in (book.get("offers") or [])]
+
+
+def polymarket_no_ask_depth(book: dict) -> list[BookLevel]:
+    """Full-depth ladder for buying NO on Polymarket. Buying NO at (1-p) is
+    economically selling YES at p, so this walks the YES bid ladder
+    complemented — same convention kalshi_best_yes_bid_ask below uses for
+    Kalshi's YES/NO complementarity. Sorted cheapest-NO-first, i.e. highest
+    YES bid first."""
+    bids = sorted(book.get("bids") or [], key=lambda lvl: -float(lvl["px"]["value"]))
+    return [BookLevel(Decimal(1) - Decimal(str(lvl["px"]["value"])), int(float(lvl["qty"]))) for lvl in bids]
+
+
+def kalshi_yes_ask_depth(orderbook: dict) -> list[BookLevel]:
+    """Full-depth ladder for buying YES on Kalshi: 1 - NO bid at each level,
+    cheapest-YES-first (i.e. highest NO bid first)."""
+    no_levels = sorted(orderbook.get("no_dollars") or [], key=lambda lvl: -float(lvl[0]))
+    return [BookLevel(Decimal(1) - Decimal(str(lvl[0])), int(lvl[1])) for lvl in no_levels]
+
+
+def kalshi_no_ask_depth(orderbook: dict) -> list[BookLevel]:
+    """Full-depth ladder for buying NO on Kalshi: 1 - YES bid at each level,
+    cheapest-NO-first (i.e. highest YES bid first)."""
+    yes_levels = sorted(orderbook.get("yes_dollars") or [], key=lambda lvl: -float(lvl[0]))
+    return [BookLevel(Decimal(1) - Decimal(str(lvl[0])), int(lvl[1])) for lvl in yes_levels]
 
 
 def polymarket_best_bid_ask(book: dict) -> tuple[float | None, float | None]:

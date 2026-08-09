@@ -10,6 +10,7 @@ from bot.config import (
     FeedsConfig,
     KalshiDivergenceStrategyConfig,
     KalshiFeedConfig,
+    LockedPairArbStrategyConfig,
     LogConfig,
     OddsApiFeedConfig,
     PolymarketFeedConfig,
@@ -31,6 +32,7 @@ def _settings(tmp_db_path: str) -> Settings:
         strategies=StrategiesConfig(
             kalshi_divergence=KalshiDivergenceStrategyConfig(),
             sportsbook_divergence=SportsbookDivergenceStrategyConfig(),
+            locked_pair_arb=LockedPairArbStrategyConfig(),
         ),
         log=LogConfig(file=tmp_db_path + ".log"),
         polymarket_api_key_id="dummy",

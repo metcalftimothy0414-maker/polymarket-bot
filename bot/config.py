@@ -69,9 +69,25 @@ class SportsbookDivergenceStrategyConfig(BaseModel):
     fill_timeout_seconds: int = 60
 
 
+class LockedPairArbStrategyConfig(BaseModel):
+    enabled: bool = True
+    min_abs_edge_cents: float = 1.0
+    hurdle_annual_return: float = 0.25
+    min_viable_size: int = 1
+    max_size_per_pair: int = 50
+    notional_usd_cap: float = 50
+    settlement_lag_days: float = 2.0
+    # Risk model (build prompt §5.3) — deliberately pessimistic starting
+    # priors, not calibrated. Calibrate p_divergence per category from
+    # settlements once enough have accumulated (see `bot report`).
+    p_divergence: float = 0.02
+    asymmetry: float = 0.85
+
+
 class StrategiesConfig(BaseModel):
     kalshi_divergence: KalshiDivergenceStrategyConfig
     sportsbook_divergence: SportsbookDivergenceStrategyConfig
+    locked_pair_arb: LockedPairArbStrategyConfig
 
 
 class Settings(BaseModel):

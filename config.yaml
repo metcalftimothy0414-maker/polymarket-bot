@@ -31,6 +31,16 @@ strategies:
     enabled: true
     entry_threshold_cents: 4.0
     fill_timeout_seconds: 60
+  locked_pair_arb:
+    enabled: true
+    min_abs_edge_cents: 1.0        # build prompt §5.4 default
+    hurdle_annual_return: 0.25     # build prompt §5.4 default; set to your actual return threshold
+    min_viable_size: 1
+    max_size_per_pair: 50
+    notional_usd_cap: 50           # small on purpose — this is still Phase 3 paper trading
+    settlement_lag_days: 2.0       # placeholder; not yet measured empirically (build prompt §5.4)
+    p_divergence: 0.02             # pessimistic prior; calibrate per category once settlements accumulate
+    asymmetry: 0.85
 
 position_notional_usd: 10
 max_concurrent_positions: 5     # global, across strategies

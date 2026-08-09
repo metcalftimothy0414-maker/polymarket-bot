@@ -86,4 +86,8 @@ Rebalancer (§7.7); Prometheus metrics/alerting (§7.9); Postgres migration
 (still SQLite, adequate at this scale); Kalshi authenticated trading (feed
 is still public/read-only); on-chain Type 1/2 intra-venue arbitrage; the
 60-day paper-trading gate itself (§8) — that requires real elapsed time
-running the bot, not something a single session can complete.
+running the bot, not something a single session can complete; dashboard
+(`bot/dashboard.py`/`bot/static/index.html`) integration for
+`locked_pair_arb` — its data model (two-leg `pair_positions`/`settlements`)
+doesn't fit the existing single-leg `paper_trades`-shaped panels, so it's
+currently only visible via `bot report`, not the live UI.

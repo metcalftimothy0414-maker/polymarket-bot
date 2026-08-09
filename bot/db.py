@@ -132,6 +132,62 @@ CREATE TABLE IF NOT EXISTS market_snapshots (
     updated_at TEXT NOT NULL,
     PRIMARY KEY (strategy_id, pair_key)
 );
+
+-- Every locked_pair_arb evaluation, accepted or not — per the build prompt's
+-- §7.4: the rejection log is the research dataset that tells you whether the
+-- strategy is capacity-, fee-, or risk-constrained.
+CREATE TABLE IF NOT EXISTS pair_evaluations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pair_id INTEGER NOT NULL,
+    ts TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    gross_edge_per_contract REAL,
+    fee_cost_per_contract REAL,
+    net_edge_per_contract REAL,
+    risk_adjustment_per_contract REAL,
+    adjusted_edge_per_contract REAL,
+    executable_size INTEGER,
+    vwap_a REAL,
+    vwap_b REAL,
+    annualized_return REAL,
+    traded INTEGER NOT NULL DEFAULT 0,
+    binding_constraint TEXT
+);
+
+CREATE TABLE IF NOT EXISTS pair_positions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    strategy_id TEXT NOT NULL,
+    pair_id INTEGER NOT NULL,
+    evaluation_id INTEGER,
+    direction TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    leg_a_venue TEXT NOT NULL,
+    leg_a_fill_price REAL NOT NULL,
+    leg_a_fee REAL NOT NULL,
+    leg_b_venue TEXT NOT NULL,
+    leg_b_fill_price REAL NOT NULL,
+    leg_b_fee REAL NOT NULL,
+    entry_cost_usd REAL NOT NULL,
+    predicted_edge_per_contract REAL,
+    predicted_annual_return REAL,
+    status TEXT NOT NULL DEFAULT 'open',
+    opened_at TEXT NOT NULL,
+    closed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS settlements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pair_position_id INTEGER NOT NULL,
+    pair_id INTEGER NOT NULL,
+    kalshi_outcome REAL,
+    polymarket_outcome REAL,
+    diverged INTEGER NOT NULL,
+    gross_payout_usd REAL NOT NULL,
+    realized_pnl_usd REAL NOT NULL,
+    predicted_edge_per_contract REAL,
+    edge_error_usd REAL,
+    settled_at TEXT NOT NULL
+);
 """
 
 
