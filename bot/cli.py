@@ -93,7 +93,13 @@ def main() -> None:
 
     scan = sub.add_parser("pairs-scan", help="Discover candidate cross-venue market pairs")
     scan.add_argument("--polymarket-category", required=True)
-    scan.add_argument("--kalshi-series", required=True, help="Kalshi series_ticker, e.g. KXNBA")
+    scan.add_argument("--kalshi-series", required=True, help="Kalshi series_ticker, e.g. KXNBAGAME")
+    scan.add_argument(
+        "--polymarket-league", action="append", default=[],
+        help="Slug league-code filter (e.g. mlb, nba, nfl) — required in practice, since Polymarket's "
+             "category field can't distinguish leagues and an unfiltered scan produces cross-sport false "
+             "matches. Repeatable.",
+    )
     scan.add_argument("--similarity-threshold", type=float, default=0.6)
     scan.add_argument("--date-tolerance-days", type=int, default=0)
     scan.add_argument("--allow-live", action="store_true", help="Override data_collection_enabled=false for this run")
@@ -136,6 +142,7 @@ def main() -> None:
             asyncio.run(pairs_scan(
                 settings, args.polymarket_category, args.kalshi_series,
                 args.similarity_threshold, args.date_tolerance_days, args.allow_live,
+                polymarket_leagues=args.polymarket_league,
             ))
         elif args.command == "pairs-review":
             settings = load_settings()

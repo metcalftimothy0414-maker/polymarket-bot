@@ -9,7 +9,7 @@ from bot import db
 from bot.config import Settings
 from bot.feeds.kalshi import KalshiFeedClient
 from bot.feeds.odds_api import OddsApiFeedClient
-from bot.feeds.polymarket import PolymarketRestClient
+from bot.feeds.polymarket import PolymarketRestClient, filter_by_leagues
 from bot.matching.matcher import (
     find_candidate_pairs,
     find_odds_api_pairs,
@@ -29,6 +29,7 @@ async def pairs_scan(
     similarity_threshold: float,
     date_tolerance_days: int,
     allow_live: bool,
+    polymarket_leagues: list[str] | None = None,
 ) -> None:
     if not settings.data_collection_enabled and not allow_live:
         print(
@@ -41,6 +42,28 @@ async def pairs_scan(
     kalshi_client = KalshiFeedClient(settings.feeds.kalshi.base_url, settings.feeds.kalshi.poll_seconds)
     try:
         pm_markets = await pm_client.discover_markets([polymarket_category], closed=False)
+        # Polymarket's "category" is always just "sports" regardless of
+        # league (confirmed elsewhere in this codebase), so without a
+        # league filter this compares every sport's markets against a
+        # single-league Kalshi series — team-name/city token overlap alone
+        # produces real cross-sport false matches (e.g. NFL "Kansas City"
+        # vs MLB "Kansas City" both matching a Kalshi baseball market).
+        if polymarket_leagues:
+            pm_markets = filter_by_leagues(pm_markets, polymarket_leagues)
+        if polymarket_category == "sports":
+            # Kalshi's KX*GAME series are plain moneyline ("Team A vs Team
+            # B Winner?") — Polymarket's sports category also lists spread/
+            # total/prop/season-futures markets for the same two teams,
+            # which the matcher's team-name+date scoring can't tell apart
+            # from the moneyline one (confirmed live: a "cover -2.5" spread
+            # market scored 1.0 against a Kalshi winner market). Those
+            # resolve on a different condition than a straight win/loss, so
+            # pairing them against a moneyline market isn't an arb, it's a
+            # coin flip. This filter is sports-specific: "futures" means
+            # something completely different (and correct to match) in
+            # e.g. politics/crypto, where it's the only market type Kalshi
+            # offers for the equivalent single-outcome event.
+            pm_markets = [m for m in pm_markets if m.get("marketType") == "moneyline"]
         kalshi_markets = await kalshi_client.get_markets(kalshi_series_ticker, status="open")
     finally:
         await pm_client.aclose()

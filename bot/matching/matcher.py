@@ -82,7 +82,15 @@ def find_candidate_pairs(
     for km in kalshi_markets:
         k_text = f"{km.get('title', '')} {km.get('subtitle', '')}".strip()
         k_tokens = normalize_tokens(k_text)
-        k_date = _date_only(km.get("close_time") or km.get("expiration_time"))
+        # occurrence_datetime is the actual game/event time. close_time and
+        # expiration_time are the administrative settlement deadline, which
+        # for sports markets carries a ~2-3 day postponement-rescheduling
+        # buffer past the real game (confirmed live against KXMLBGAME:
+        # occurrence_datetime 08-10, close_time 08-13/14). Matching on
+        # close_time silently pairs a market against the WRONG game in a
+        # multi-game series once that buffer happens to land inside
+        # date_tolerance_days of a different, later game on the other venue.
+        k_date = _date_only(km.get("occurrence_datetime") or km.get("close_time") or km.get("expiration_time"))
 
         for pm, pm_tokens, pm_date in pm_indexed:
             if pm_date is None or k_date is None:

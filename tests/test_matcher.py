@@ -89,6 +89,27 @@ class TestFindCandidatePairs(unittest.TestCase):
         self.assertEqual(no_tolerance, [])
         self.assertEqual(len(with_tolerance), 1)
 
+    def test_occurrence_datetime_used_over_close_time_postponement_buffer(self):
+        # Live bug found 2026-08-09: Kalshi's close_time carries a multi-day
+        # postponement-rescheduling buffer past the real game
+        # (occurrence_datetime). For a team that plays a multi-game series,
+        # that buffer can drift into date_tolerance_days of a LATER,
+        # different game against the same opponent on the other venue —
+        # a false match, not a rescheduling edge case.
+        same_day_but_wrong_game = [dict(
+            KALSHI_MARKETS[0],
+            occurrence_datetime="2026-01-08T23:00:00Z",  # the real game: 2 days before the PM listing
+            close_time="2026-01-10T23:30:00Z",  # postponement buffer happens to land on the PM game's date
+        )]
+        matched_at_zero_tolerance = find_candidate_pairs(
+            PM_MARKETS, same_day_but_wrong_game, similarity_threshold=0.5, date_tolerance_days=0,
+        )
+        self.assertEqual(matched_at_zero_tolerance, [])  # true dates are 2 days apart, must not match
+        matched_at_two_day_tolerance = find_candidate_pairs(
+            PM_MARKETS, same_day_but_wrong_game, similarity_threshold=0.5, date_tolerance_days=2,
+        )
+        self.assertEqual(len(matched_at_two_day_tolerance), 1)  # widening tolerance still uses the real date
+
 
 class TestStorePairs(unittest.TestCase):
     def setUp(self):
