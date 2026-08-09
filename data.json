@@ -1,0 +1,68 @@
+{
+  "generated_at": "2026-08-09T21:44:20.058821+00:00",
+  "mode": "PAPER",
+  "feed_health": {
+    "last_heartbeat_at": "2026-08-09T21:42:26.838730+00:00",
+    "heartbeat_age_seconds": 113.220279,
+    "runner_alive": true
+  },
+  "pair_counts": {
+    "kalshi_pairs_total": 0,
+    "kalshi_pairs_verified": 0,
+    "odds_pairs_total": 85,
+    "odds_pairs_verified": 19
+  },
+  "strategies": {
+    "kalshi_divergence": {
+      "strategy_id": "kalshi_divergence",
+      "opportunities_detected": 0,
+      "median_persistence_seconds": null,
+      "fill_rate": null,
+      "win_rate": null,
+      "avg_edge_cents": null,
+      "max_drawdown_usd": 0.0,
+      "total_pnl_usd": 0,
+      "open_positions": 0,
+      "base_rate_test": null,
+      "dead": false,
+      "kill_reasons": [
+        "insufficient data (0/100+ opportunities needed)"
+      ]
+    },
+    "sportsbook_divergence": {
+      "strategy_id": "sportsbook_divergence",
+      "opportunities_detected": 0,
+      "median_persistence_seconds": null,
+      "fill_rate": null,
+      "win_rate": null,
+      "avg_edge_cents": null,
+      "max_drawdown_usd": 0.0,
+      "total_pnl_usd": 0,
+      "open_positions": 0,
+      "base_rate_test": {
+        "n": 0,
+        "sufficient": false
+      },
+      "dead": false,
+      "kill_reasons": [
+        "insufficient data (0/100+ opportunities needed)"
+      ]
+    }
+  },
+  "locked_pair_arb": {
+    "evaluations": 0,
+    "trades_opened": 0,
+    "reject_reasons": {},
+    "open_positions": 0,
+    "settled": 0,
+    "diverged": 0,
+    "median_edge_error_usd": null,
+    "total_pnl_usd": 0
+  },
+  "markets_discovered": 12707,
+  "recent_opportunities": [],
+  "recent_pair_evaluations": [],
+  "recent_trades": [],
+  "recent_pair_positions": [],
+  "recent_errors": []
+}

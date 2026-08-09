@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>polymarket-bot — live paper trading</title>
+<style>
+  :root {
+    --bg: #0A0A0C; --card: #111318; --border: #22262E;
+    --text: #D1D5DB; --muted: #6B7280;
+    --profit: #22C55E; --loss: #EF4444; --paper: #F59E0B;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text); margin: 0;
+    font-family: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+  }
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: var(--bg); z-index: 5;
+  }
+  .bot-name { text-transform: uppercase; letter-spacing: 0.1em; font-size: 14px; }
+  .header-right { display: flex; align-items: center; gap: 10px; font-size: 11px; }
+  .mode-badge { color: var(--paper); border: 1px solid var(--paper); border-radius: 4px; padding: 2px 8px; letter-spacing: 0.05em; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
+  .status-dot.live { background: var(--profit); animation: pulse 1.6s ease-in-out infinite; }
+  .status-dot.stale { background: var(--loss); }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @media (prefers-reduced-motion: reduce) { .status-dot.live { animation: none; } }
+
+  main { max-width: 1200px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 12px 14px;
+  }
+  .card .label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .card .value { font-size: 22px; }
+  .card .sub { color: var(--muted); font-size: 11px; margin-top: 4px; }
+  .profit { color: var(--profit); } .loss { color: var(--loss); } .muted { color: var(--muted); } .paper { color: var(--paper); }
+
+  section h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+    margin: 0 0 8px; font-weight: 400; border-bottom: 1px solid var(--border); padding-bottom: 6px;
+  }
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 400; text-transform: uppercase; letter-spacing: 0.05em; font-size: 10px; }
+  tr:last-child td { border-bottom: none; }
+  .empty-row td { color: var(--muted); text-align: center; padding: 16px; }
+
+  .strategy-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .strategy-header .sid { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .dead-badge { color: var(--loss); border: 1px solid var(--loss); border-radius: 4px; padding: 1px 6px; font-size: 10px; }
+  .kv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; font-size: 12px; }
+  .kv-grid .k { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  footer {
+    border-top: 1px solid var(--border); padding: 12px 18px; color: var(--muted); font-size: 11px;
+    display: flex; gap: 16px; flex-wrap: wrap; max-width: 1200px; margin: 0 auto;
+  }
+  a { color: inherit; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bot-name">polymarket-bot</div>
+  <div class="header-right">
+    <span class="mode-badge">PAPER — no live orders</span>
+    <span id="status-dot" class="status-dot"></span>
+    <span id="status-text">connecting…</span>
+  </div>
+</header>
+
+<main>
+  <section class="grid" id="top-stats"></section>
+
+  <section>
+    <h2>Strategies</h2>
+    <div class="grid" id="strategy-cards"></div>
+  </section>
+
+  <section>
+    <h2>locked_pair_arb — cross-venue arbitrage (Type 3)</h2>
+    <div class="card">
+      <div class="kv-grid" id="lpa-stats"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Recent opportunities</h2>
+    <div class="table-scroll">
+      <table id="opp-table"><thead><tr>
+        <th>Time</th><th>Strategy</th><th>Market</th><th>Direction</th><th>Signal</th><th>Entry</th><th>Status</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section>
+    <h2>locked_pair_arb evaluations (the rejection log)</h2>
+    <div class="table-scroll">
+      <table id="eval-table"><thead><tr>
+        <th>Time</th><th>Pair</th><th>Direction</th><th>Adj. edge/contract</th><th>Size</th><th>Annualized</th><th>Traded</th><th>Constraint</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Recent paper trades</h2>
+    <div class="table-scroll">
+      <table id="trade-table"><thead><tr>
+        <th>Opened</th><th>Strategy</th><th>Market</th><th>Direction</th><th>Fill</th><th>Notional</th><th>Status</th><th>Realized P&amp;L</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Recent errors</h2>
+    <div class="table-scroll">
+      <table id="error-table"><thead><tr><th>Time</th><th>Component</th><th>Message</th></tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+</main>
+
+<footer id="footer"></footer>
+
+<script>
+const REFRESH_MS = 30000;
+const $ = (sel) => document.querySelector(sel);
+const fmt = (v, d = 2) => (v === null || v === undefined) ? '—' : Number(v).toFixed(d);
+const pct = (v) => (v === null || v === undefined) ? '—' : (Number(v) * 100).toFixed(1) + '%';
+const esc = (s) => (s ?? '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ago = (iso) => {
+  if (!iso) return '—';
+  const secs = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (secs < 60) return Math.floor(secs) + 's ago';
+  if (secs < 3600) return Math.floor(secs / 60) + 'm ago';
+  return Math.floor(secs / 3600) + 'h ago';
+};
+
+function renderTopStats(d) {
+  const fh = d.feed_health;
+  const pc = d.pair_counts;
+  $('#top-stats').innerHTML = `
+    <div class="card"><div class="label">Runner status</div>
+      <div class="value ${fh.runner_alive ? 'profit' : 'loss'}">${fh.runner_alive ? 'RUNNING' : 'STALE'}</div>
+      <div class="sub">last heartbeat ${ago(fh.last_heartbeat_at)}</div></div>
+    <div class="card"><div class="label">Markets discovered</div>
+      <div class="value">${d.markets_discovered}</div></div>
+    <div class="card"><div class="label">Kalshi pairs</div>
+      <div class="value">${pc.kalshi_pairs_verified} <span class="muted" style="font-size:14px">/ ${pc.kalshi_pairs_total}</span></div>
+      <div class="sub">verified / candidates</div></div>
+    <div class="card"><div class="label">Odds API pairs</div>
+      <div class="value">${pc.odds_pairs_verified} <span class="muted" style="font-size:14px">/ ${pc.odds_pairs_total}</span></div>
+      <div class="sub">verified / candidates</div></div>
+  `;
+  const dot = $('#status-dot');
+  dot.className = 'status-dot ' + (fh.runner_alive ? 'live' : 'stale');
+  $('#status-text').textContent = fh.runner_alive ? 'live' : 'stale — bot not currently running';
+}
+
+function renderStrategyCards(d) {
+  const html = Object.entries(d.strategies).map(([sid, m]) => `
+    <div class="card">
+      <div class="strategy-header">
+        <span class="sid">${esc(sid)}</span>
+        ${m.dead ? '<span class="dead-badge">DEAD</span>' : ''}
+      </div>
+      <div class="kv-grid">
+        <div><div class="k">Opportunities</div>${m.opportunities_detected}</div>
+        <div><div class="k">Fill rate</div>${pct(m.fill_rate)}</div>
+        <div><div class="k">Win rate</div>${pct(m.win_rate)}</div>
+        <div><div class="k">Avg edge</div>${fmt(m.avg_edge_cents)}c</div>
+        <div><div class="k">Open positions</div>${m.open_positions}</div>
+        <div><div class="k">Total P&amp;L</div><span class="${m.total_pnl_usd > 0 ? 'profit' : m.total_pnl_usd < 0 ? 'loss' : ''}">$${fmt(m.total_pnl_usd)}</span></div>
+      </div>
+    </div>
+  `).join('');
+  $('#strategy-cards').innerHTML = html;
+}
+
+function renderLockedPairArb(d) {
+  const m = d.locked_pair_arb;
+  const reasons = Object.entries(m.reject_reasons || {}).sort((a, b) => b[1] - a[1])
+    .map(([r, c]) => `${esc(r)}: ${c}`).join(' · ') || '—';
+  $('#lpa-stats').innerHTML = `
+    <div><div class="k">Evaluations logged</div>${m.evaluations}</div>
+    <div><div class="k">Trades opened</div>${m.trades_opened}</div>
+    <div><div class="k">Open positions</div>${m.open_positions}</div>
+    <div><div class="k">Settled (diverged)</div>${m.settled} (${m.diverged})</div>
+    <div><div class="k">Median edge error</div>${fmt(m.median_edge_error_usd, 4)}</div>
+    <div><div class="k">Total realized P&amp;L</div><span class="${m.total_pnl_usd > 0 ? 'profit' : m.total_pnl_usd < 0 ? 'loss' : ''}">$${fmt(m.total_pnl_usd)}</span></div>
+    <div style="grid-column: 1 / -1"><div class="k">Rejection breakdown</div><span class="muted">${reasons}</span></div>
+  `;
+}
+
+function renderTable(sel, rows, cols, emptyMsg) {
+  const tbody = document.querySelector(sel + ' tbody');
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="${cols.length}">${emptyMsg}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `<tr>${cols.map(c => `<td>${c(r)}</td>`).join('')}</tr>`).join('');
+}
+
+function render(d) {
+  renderTopStats(d);
+  renderStrategyCards(d);
+  renderLockedPairArb(d);
+
+  renderTable('#opp-table', d.recent_opportunities, [
+    r => ago(r.detected_at), r => esc(r.strategy_id), r => esc(r.market_ref),
+    r => esc(r.direction), r => fmt(r.signal_value, 4), r => fmt(r.entry_price), r => esc(r.status),
+  ], 'No opportunities detected yet — waiting on verified pairs.');
+
+  renderTable('#eval-table', d.recent_pair_evaluations, [
+    r => ago(r.ts), r => r.pair_id, r => esc(r.direction),
+    r => fmt(r.adjusted_edge_per_contract, 4), r => r.executable_size ?? '—', r => pct(r.annualized_return),
+    r => r.traded ? '<span class="profit">yes</span>' : '<span class="muted">no</span>', r => esc(r.binding_constraint),
+  ], 'No evaluations yet — locked_pair_arb needs at least one verified pair.');
+
+  renderTable('#trade-table', d.recent_trades, [
+    r => ago(r.opened_at), r => esc(r.strategy_id), r => esc(r.market_ref), r => esc(r.direction),
+    r => fmt(r.fill_price, 4), r => '$' + fmt(r.notional_usd), r => esc(r.status),
+    r => r.realized_pnl_usd == null ? '—' : `<span class="${r.realized_pnl_usd > 0 ? 'profit' : r.realized_pnl_usd < 0 ? 'loss' : ''}">$${fmt(r.realized_pnl_usd)}</span>`,
+  ], 'No paper trades yet.');
+
+  renderTable('#error-table', d.recent_errors, [
+    r => ago(r.ts), r => esc(r.component), r => esc(r.message),
+  ], 'No errors logged. Good.');
+
+  $('#footer').innerHTML = `
+    <span>snapshot generated ${ago(d.generated_at)} (${esc(d.generated_at)})</span>
+    <span>refreshes every ${REFRESH_MS / 1000}s</span>
+    <span><a href="https://github.com/metcalftimothy0414-maker/polymarket-bot" target="_blank" rel="noopener">source</a></span>
+  `;
+}
+
+async function load() {
+  try {
+    const res = await fetch('data.json?t=' + Date.now(), { cache: 'no-store' });
+    const d = await res.json();
+    render(d);
+  } catch (e) {
+    $('#status-text').textContent = 'failed to load data.json';
+    $('#status-dot').className = 'status-dot stale';
+  }
+}
+
+load();
+setInterval(load, REFRESH_MS);
+</script>
+</body>
+</html>
