@@ -128,6 +128,9 @@ def main() -> None:
     dash.add_argument("--port", type=int, default=8000)
     dash.add_argument("--ngrok", action="store_true", help="Also open an ngrok tunnel for remote access (requires an ngrok authtoken already configured)")
 
+    dash_export = sub.add_parser("dashboard-export", help="Write a JSON snapshot for the static public dashboard")
+    dash_export.add_argument("--out", default="dashboard-site/data.json")
+
     args = parser.parse_args()
     try:
         if args.command == "run":
@@ -176,6 +179,16 @@ def main() -> None:
                 public_url = ngrok.connect(args.port, "http")
                 print(f"ngrok tunnel: {public_url}")
             uvicorn.run("bot.dashboard:app", host=args.host, port=args.port)
+        elif args.command == "dashboard-export":
+            import json
+            from pathlib import Path
+            from bot.export_dashboard import build_snapshot
+            conn = db.connect()
+            snapshot = build_snapshot(conn)
+            out_path = Path(args.out)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(json.dumps(snapshot, indent=2))
+            print(f"Wrote dashboard snapshot to {args.out}")
     except SystemExit:
         raise
     except Exception as exc:
