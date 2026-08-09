@@ -45,6 +45,10 @@ CREATE TABLE IF NOT EXISTS pairs (
     verified INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     reviewed_at TEXT,
+    category TEXT NOT NULL DEFAULT 'sports',
+    tier INTEGER,
+    tier_reasons TEXT,
+    polling_tier TEXT NOT NULL DEFAULT 'C',
     UNIQUE(polymarket_slug, kalshi_ticker)
 );
 
@@ -188,6 +192,67 @@ CREATE TABLE IF NOT EXISTS settlements (
     edge_error_usd REAL,
     settled_at TEXT NOT NULL
 );
+
+-- Per build prompt (category expansion task) §1: the published formula's
+-- own default is M_taker=1, M_maker=0; sports series override M_maker to 1;
+-- a short explicit list is 0/0. Populated by bot.fee_multipliers, refreshed
+-- daily. `source` distinguishes a confirmed override from the raw default,
+-- so a caller can tell "we checked and it's 1/0" from "we haven't checked".
+CREATE TABLE IF NOT EXISTS kalshi_series_multipliers (
+    series_ticker TEXT PRIMARY KEY,
+    m_taker REAL NOT NULL,
+    m_maker REAL NOT NULL,
+    source TEXT NOT NULL,
+    fetched_at TEXT NOT NULL
+);
+
+-- Full-catalog discovery (§2), separate from the existing `markets` table
+-- (which is Polymarket-only and tied to the sports watchlist path) so
+-- universe-wide enumeration can't regress sports behavior.
+CREATE TABLE IF NOT EXISTS kalshi_catalog (
+    ticker TEXT PRIMARY KEY,
+    series_ticker TEXT NOT NULL,
+    event_ticker TEXT,
+    title TEXT,
+    category TEXT,
+    rules_primary TEXT,
+    rules_secondary TEXT,
+    close_time TEXT,
+    expiration_time TEXT,
+    occurrence_datetime TEXT,
+    status TEXT,
+    first_seen TEXT NOT NULL,
+    last_seen TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS polymarket_catalog (
+    slug TEXT PRIMARY KEY,
+    question TEXT,
+    category TEXT,
+    market_type TEXT,
+    description TEXT,
+    tick_size REAL,
+    neg_risk INTEGER,
+    game_start_time TEXT,
+    end_date TEXT,
+    status TEXT,
+    first_seen TEXT NOT NULL,
+    last_seen TEXT NOT NULL
+);
+
+-- Divergence-persistence measurement (§7) — the research output the whole
+-- category-expansion task exists to produce: does divergence exist outside
+-- sports, and does it last longer there? One row per open-to-close cycle.
+CREATE TABLE IF NOT EXISTS divergence_periods (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pair_id INTEGER NOT NULL,
+    category TEXT NOT NULL,
+    tier INTEGER NOT NULL,
+    opened_at TEXT NOT NULL,
+    closed_at TEXT,
+    peak_edge REAL NOT NULL,
+    duration_seconds REAL
+);
 """
 
 
@@ -197,6 +262,20 @@ def _migrate(conn: sqlite3.Connection) -> None:
     columns = {row[1] for row in conn.execute("PRAGMA table_info(candidates)")}
     if "trade_size_usd" not in columns:
         conn.execute("ALTER TABLE candidates ADD COLUMN trade_size_usd REAL")
+
+    # Category expansion (§3/§4/§6): every existing sports pair defaults to
+    # category='sports' so old rows stay queryable/filterable exactly like
+    # new ones, and polling_tier='A' so already-verified pairs don't drop to
+    # a slower cadence on upgrade.
+    pairs_columns = {row[1] for row in conn.execute("PRAGMA table_info(pairs)")}
+    if "category" not in pairs_columns:
+        conn.execute("ALTER TABLE pairs ADD COLUMN category TEXT NOT NULL DEFAULT 'sports'")
+    if "tier" not in pairs_columns:
+        conn.execute("ALTER TABLE pairs ADD COLUMN tier INTEGER")
+    if "tier_reasons" not in pairs_columns:
+        conn.execute("ALTER TABLE pairs ADD COLUMN tier_reasons TEXT")
+    if "polling_tier" not in pairs_columns:
+        conn.execute("ALTER TABLE pairs ADD COLUMN polling_tier TEXT NOT NULL DEFAULT 'C'")
 
 
 def connect(db_path: str | Path = "data/bot.db") -> sqlite3.Connection:

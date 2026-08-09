@@ -51,6 +51,22 @@ class TestKalshiFeedClient(unittest.TestCase):
 
         asyncio.run(scenario())
 
+    def test_get_series_list_follows_pagination_cursor(self):
+        async def scenario():
+            client = KalshiFeedClient("https://example.invalid", poll_seconds=1)
+            pages = [
+                MagicMock(json=MagicMock(return_value={"series": [{"ticker": "A"}], "cursor": "next"})),
+                MagicMock(json=MagicMock(return_value={"series": [{"ticker": "B"}], "cursor": ""})),
+            ]
+            for p in pages:
+                p.raise_for_status = MagicMock()
+            with patch.object(client._client, "get", AsyncMock(side_effect=pages)):
+                series = await client.get_series_list(category="Sports")
+            await client.aclose()
+            self.assertEqual([s["ticker"] for s in series], ["A", "B"])
+
+        asyncio.run(scenario())
+
 
 if __name__ == "__main__":
     unittest.main()

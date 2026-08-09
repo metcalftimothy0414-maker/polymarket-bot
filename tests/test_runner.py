@@ -70,12 +70,15 @@ class TestRunnerWiring(unittest.TestCase):
             try:
                 settings = _settings(db_path)
                 with patch("bot.runner.PolymarketRestClient") as MockRest, \
-                     patch("bot.runner.PolymarketWSClient") as MockWS:
+                     patch("bot.runner.PolymarketWSClient") as MockWS, \
+                     patch("bot.runner.KalshiFeedClient") as MockKalshi:
                     mock_rest = MockRest.return_value
                     mock_rest.discover_markets = AsyncMock(return_value=[])
                     mock_rest.aclose = AsyncMock()
                     mock_ws = MockWS.return_value
                     mock_ws.stream = FakeWSStream()
+                    mock_kalshi = MockKalshi.return_value
+                    mock_kalshi.get_series_list = AsyncMock(return_value=[])
 
                     try:
                         await asyncio.wait_for(run(settings), timeout=1.0)
@@ -118,6 +121,7 @@ class TestRunnerWiring(unittest.TestCase):
                     mock_ws.stream = fake_stream
                     mock_kalshi = MockKalshi.return_value
                     mock_kalshi.poll = AsyncMock(side_effect=lambda *a, **kw: asyncio.sleep(3600))
+                    mock_kalshi.get_series_list = AsyncMock(return_value=[])
 
                     try:
                         await asyncio.wait_for(run(settings), timeout=1.0)

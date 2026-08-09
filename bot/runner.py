@@ -8,6 +8,7 @@ from decimal import Decimal
 from bot import db
 from bot.config import Settings
 from bot.edge import RiskParams
+from bot.fee_multipliers import daily_refresh_loop as fee_multiplier_refresh_loop
 from bot.feeds.auth import PolymarketAuth
 from bot.feeds.kalshi import KalshiFeedClient
 from bot.feeds.odds_api import OddsApiFeedClient
@@ -121,10 +122,17 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
 
     kalshi_client = None
     if settings.feeds.kalshi.enabled:
+        # Always create the client when Kalshi is enabled — the fee
+        # multiplier refresh and (eventually) catalog discovery need it
+        # regardless of whether any pair is verified yet, not just the
+        # per-ticker orderbook poll below.
+        kalshi_client = KalshiFeedClient(settings.feeds.kalshi.base_url, settings.feeds.kalshi.poll_seconds)
+        background_tasks.append(asyncio.create_task(
+            fee_multiplier_refresh_loop(kalshi_client, conn, stop_event)
+        ))
+
         kalshi_tickers = [r[0] for r in conn.execute("SELECT DISTINCT kalshi_ticker FROM pairs WHERE verified = 1")]
         if kalshi_tickers:
-            kalshi_client = KalshiFeedClient(settings.feeds.kalshi.base_url, settings.feeds.kalshi.poll_seconds)
-
             async def on_kalshi_update(ticker: str, book: dict) -> None:
                 state.kalshi.update(ticker, book)
 

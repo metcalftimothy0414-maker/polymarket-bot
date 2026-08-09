@@ -43,6 +43,24 @@ class KalshiFeedClient:
             raise KalshiResponseError(f"no 'market' key in response for {ticker}: {body}")
         return body["market"]
 
+    async def get_series_list(self, category: str | None = None, limit: int = 200) -> list[dict]:
+        series: list[dict] = []
+        cursor = None
+        while True:
+            params: dict = {"limit": limit}
+            if category:
+                params["category"] = category
+            if cursor:
+                params["cursor"] = cursor
+            resp = await self._client.get("/series", params=params)
+            resp.raise_for_status()
+            body = resp.json()
+            series.extend(body.get("series", []))
+            cursor = body.get("cursor")
+            if not cursor:
+                break
+        return series
+
     async def get_markets(self, series_ticker: str, status: str = "open", limit: int = 200) -> list[dict]:
         markets: list[dict] = []
         cursor = None

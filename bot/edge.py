@@ -7,8 +7,11 @@ rounding to a cent) are only correct with exact decimal arithmetic.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_EVEN, ROUND_UP, Decimal
+
+logger = logging.getLogger(__name__)
 
 CENTICENT = Decimal("0.0001")
 CENT = Decimal("0.01")
@@ -20,26 +23,37 @@ POLYMARKET_TAKER_THETA = Decimal("0.06")
 POLYMARKET_MAKER_THETA = Decimal("0.0125")
 
 # Non-standard per-series Kalshi multiplier table. The published formula's
-# own default is M_taker=1, M_maker=0 — but most real series (sports,
-# Fed/CPI/GDP, awards) override M_maker to 1 in Kalshi's Non-Standard Fees
-# table, which VERIFIED_FACTS.md could not fetch (PDF fetch failed in this
-# environment: TLS cert error). This starts empty; an operator must populate
-# confirmed series here before a maker-side EV calculation on an unlisted
-# series can be trusted. `kalshi_series_multipliers` returns whether the
-# series was found so callers (e.g. the strategy layer) can refuse to size a
-# maker leg on an unconfirmed series rather than silently trusting M=0.
-KALSHI_SERIES_MULTIPLIERS: dict[str, tuple[Decimal, Decimal]] = {
-    # "KXBTCY": (Decimal(0), Decimal(0)),  # example of a confirmed 0/0 series
-}
+# own default is M_taker=1, M_maker=0 — sports series override M_maker to 1,
+# and a short explicit list is 0/0 (zero fees entirely). Populated at
+# runtime by bot.fee_multipliers.load_into_edge_module() from the
+# kalshi_series_multipliers DB table (refreshed daily from Kalshi's live
+# catalog) — this dict starts empty and is deliberately mutated in place
+# (not reassigned) so callers that imported it directly still see updates.
+# `kalshi_series_multipliers()` returns whether the series was found so
+# callers can refuse to size a maker leg on an unconfirmed series rather
+# than silently trusting the raw default.
+KALSHI_SERIES_MULTIPLIERS: dict[str, tuple[Decimal, Decimal]] = {}
 DEFAULT_KALSHI_MAKER_MULTIPLIER = Decimal(0)
 DEFAULT_KALSHI_TAKER_MULTIPLIER = Decimal(1)
 
+_WARNED_UNCONFIRMED_SERIES: set[str] = set()
+
 
 def kalshi_series_multipliers(series: str | None) -> tuple[Decimal, Decimal, bool]:
-    """Returns (M_taker, M_maker, confirmed) for a Kalshi series ticker."""
+    """Returns (M_taker, M_maker, confirmed) for a Kalshi series ticker.
+    Logs a WARNING the first time an unconfirmed series is looked up, so
+    silently-defaulted series are visible in the logs rather than just
+    quietly under-charging maker fees."""
     if series and series in KALSHI_SERIES_MULTIPLIERS:
         m_taker, m_maker = KALSHI_SERIES_MULTIPLIERS[series]
         return m_taker, m_maker, True
+    if series and series not in _WARNED_UNCONFIRMED_SERIES:
+        _WARNED_UNCONFIRMED_SERIES.add(series)
+        logger.warning(
+            "Kalshi series %r has no confirmed fee multiplier; defaulting to M_taker=%s M_maker=%s. "
+            "Run bot.fee_multipliers.refresh_kalshi_multipliers to confirm it.",
+            series, DEFAULT_KALSHI_TAKER_MULTIPLIER, DEFAULT_KALSHI_MAKER_MULTIPLIER,
+        )
     return DEFAULT_KALSHI_TAKER_MULTIPLIER, DEFAULT_KALSHI_MAKER_MULTIPLIER, False
 
 
