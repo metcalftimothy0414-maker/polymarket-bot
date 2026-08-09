@@ -85,6 +85,25 @@ class PairEvaluation:
     reason: str
 
 
+# Canonical binding_constraint vocabulary (category expansion task §5) —
+# bot scan-report groups by these exact values, so every rejection reason
+# gets bucketed into one of them rather than reported as free text.
+def _canonical_binding_constraint(reason: str, traded: bool) -> str:
+    if traded:
+        return "passed"
+    if reason == "stale_book":
+        return "stale_book"
+    if reason == "tier_too_high":
+        return "tier_too_high"
+    if reason.startswith("adjusted_edge"):
+        return "below_min_edge"
+    if reason.startswith("annual_return"):
+        return "below_annual_hurdle"
+    if reason in ("no_executable_depth_above_hurdle", "below_min_viable_size") or reason.startswith("size "):
+        return "insufficient_depth"
+    return reason  # e.g. "pair_already_has_open_position" — a real state outside the 6-value enum
+
+
 def has_open_pair_position(conn: sqlite3.Connection, pair_id: int) -> bool:
     row = conn.execute(
         "SELECT 1 FROM pair_positions WHERE pair_id = ? AND status = 'open'", (pair_id,)
@@ -123,7 +142,8 @@ def _log_evaluation(conn: sqlite3.Connection, ev: PairEvaluation, now: str) -> N
             ev.pair_id, now, ev.direction, f(ev.gross_edge_per_contract),
             f(ev.fee_a + ev.fee_b if ev.fee_a is not None and ev.fee_b is not None else None),
             f(ev.net_edge_per_contract), f(ev.risk_adjustment_per_contract), f(ev.adjusted_edge_per_contract),
-            ev.size, f(ev.vwap_a), f(ev.vwap_b), f(ev.annual_return), int(ev.traded), ev.reason,
+            ev.size, f(ev.vwap_a), f(ev.vwap_b), f(ev.annual_return),
+            int(ev.traded), _canonical_binding_constraint(ev.reason, ev.traded),
         ),
     )
 
@@ -142,6 +162,7 @@ class LockedPairArbStrategy:
         max_size_per_pair: int = 50,
         notional_usd_cap: Decimal = Decimal("50"),
         settlement_lag_days: Decimal = Decimal("2"),
+        max_reviewable_tier: int = 3,
         risk: RiskParams | None = None,
     ) -> None:
         self.conn = conn
@@ -152,7 +173,18 @@ class LockedPairArbStrategy:
         self.max_size_per_pair = max_size_per_pair
         self.notional_usd_cap = notional_usd_cap
         self.settlement_lag_days = settlement_lag_days
+        self.max_reviewable_tier = max_reviewable_tier
         self.risk = risk or RiskParams()
+
+    @staticmethod
+    def _skipped_evaluation(pair_id: int, reason: str) -> PairEvaluation:
+        """Pair-level skip (stale book, tier above the review threshold) —
+        logged as a single row, not per-direction, since no book-walking
+        happened. Every scan of every verified pair produces at least one
+        persisted row, per the task's explicit "regardless of whether it
+        passes" requirement — a silent `continue` with nothing logged would
+        make the rejection log blind to exactly these cases."""
+        return PairEvaluation(pair_id, "n/a", 0, None, None, None, None, None, None, None, None, None, False, reason)
 
     def _risk_charge_per_contract(self) -> Decimal:
         return (
@@ -210,16 +242,25 @@ class LockedPairArbStrategy:
         evaluations: list[PairEvaluation] = []
 
         pairs = self.conn.execute(
-            "SELECT id, polymarket_slug, kalshi_ticker, polymarket_end_date, kalshi_close_date "
+            "SELECT id, polymarket_slug, kalshi_ticker, polymarket_end_date, kalshi_close_date, tier "
             "FROM pairs WHERE verified = 1"
         ).fetchall()
 
-        for pair_id, pm_slug, k_ticker, pm_end, k_close in pairs:
+        for pair_id, pm_slug, k_ticker, pm_end, k_close, tier in pairs:
+            if tier is not None and tier > self.max_reviewable_tier:
+                ev = self._skipped_evaluation(pair_id, "tier_too_high")
+                _log_evaluation(self.conn, ev, now)
+                evaluations.append(ev)
+                continue
+
             pm_book = self.state.polymarket_book(pm_slug)
             k_book = self.state.kalshi.get(k_ticker)
-            if not pm_book or not k_book:
-                continue
-            if self.state.polymarket_is_stale(pm_slug) or self.state.kalshi.is_stale(k_ticker):
+            book_missing = not pm_book or not k_book
+            book_stale = not book_missing and (self.state.polymarket_is_stale(pm_slug) or self.state.kalshi.is_stale(k_ticker))
+            if book_missing or book_stale:
+                ev = self._skipped_evaluation(pair_id, "stale_book")
+                _log_evaluation(self.conn, ev, now)
+                evaluations.append(ev)
                 continue
 
             days = [d for d in (_days_to(pm_end, now_dt), _days_to(k_close, now_dt)) if d is not None]

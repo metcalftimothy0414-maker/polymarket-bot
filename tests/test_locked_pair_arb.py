@@ -100,13 +100,74 @@ class LockedPairArbStrategyTests(unittest.TestCase):
         count = self.conn.execute("SELECT COUNT(*) FROM pair_positions").fetchone()[0]
         self.assertEqual(count, 1)
 
-    def test_stale_data_skips_the_pair_entirely(self):
+    def test_passing_trade_has_canonical_passed_binding_constraint(self):
+        self.ws.books["pm-slug"] = pm_book(0.80, 0.82)
+        self.state.kalshi.update("KXTEST-25-YES", k_book(0.28, 0.70))
+        self._scan()
+        row = self.conn.execute(
+            "SELECT binding_constraint FROM pair_evaluations WHERE traded = 1"
+        ).fetchone()
+        self.assertEqual(row[0], "passed")
+
+    def test_rejected_trade_has_canonical_below_annual_hurdle_or_edge(self):
+        # Tiny but positive edge: clears the book-depth walk but not the
+        # decision gate — the raw decide() message ("annual_return ... <
+        # hurdle ...") must be bucketed into the canonical vocabulary, not
+        # stored as free text.
+        strategy = LockedPairArbStrategy(
+            self.conn, self.state, min_abs_edge=Decimal("0.001"), hurdle_annual_return=Decimal("50"),
+        )
+        self.ws.books["pm-slug"] = pm_book(0.80, 0.82)
+        self.state.kalshi.update("KXTEST-25-YES", k_book(0.28, 0.70))
+        asyncio.run(strategy.scan())
+        rows = {r[0] for r in self.conn.execute("SELECT binding_constraint FROM pair_evaluations WHERE traded = 0").fetchall()}
+        self.assertTrue(rows.issubset({"below_annual_hurdle", "below_min_edge", "insufficient_depth"}))
+
+    def test_tier_above_max_reviewable_is_skipped_and_logged(self):
+        self.conn.execute("UPDATE pairs SET tier = 4 WHERE id = 1")
+        self.conn.commit()
+        strategy = LockedPairArbStrategy(self.conn, self.state, max_reviewable_tier=3)
+        self.ws.books["pm-slug"] = pm_book(0.80, 0.82)
+        self.state.kalshi.update("KXTEST-25-YES", k_book(0.28, 0.70))
+        evals = asyncio.run(strategy.scan())
+        self.assertEqual(len(evals), 1)
+        self.assertFalse(evals[0].traded)
+        self.assertEqual(evals[0].reason, "tier_too_high")
+        row = self.conn.execute("SELECT binding_constraint FROM pair_evaluations").fetchone()
+        self.assertEqual(row[0], "tier_too_high")
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM pair_positions").fetchone()[0], 0)
+
+    def test_tier_at_or_below_max_reviewable_is_evaluated_normally(self):
+        self.conn.execute("UPDATE pairs SET tier = 3 WHERE id = 1")
+        self.conn.commit()
+        strategy = LockedPairArbStrategy(self.conn, self.state, max_reviewable_tier=3)
+        self.ws.books["pm-slug"] = pm_book(0.80, 0.82)
+        self.state.kalshi.update("KXTEST-25-YES", k_book(0.28, 0.70))
+        evals = asyncio.run(strategy.scan())
+        self.assertTrue(any(e.traded for e in evals))
+
+    def test_null_tier_is_not_gated(self):
+        # Pairs verified before tiering existed have tier=NULL — must not
+        # be silently blocked by a feature that post-dates them.
+        strategy = LockedPairArbStrategy(self.conn, self.state, max_reviewable_tier=3)
+        self.ws.books["pm-slug"] = pm_book(0.80, 0.82)
+        self.state.kalshi.update("KXTEST-25-YES", k_book(0.28, 0.70))
+        evals = asyncio.run(strategy.scan())
+        self.assertTrue(any(e.traded for e in evals))
+
+    def test_stale_data_is_logged_not_silently_dropped(self):
+        # §5: every scan of every verified pair persists an evaluation row,
+        # even a rejection — a silent skip would make the rejection log
+        # blind to how often staleness is the actual bottleneck.
         self.ws.books["pm-slug"] = pm_book(0.80, 0.82)
         self.state.kalshi.update("KXTEST-25-YES", k_book(0.28, 0.70))
         self.ws._stale.add("pm-slug")
         evals = self._scan()
-        self.assertEqual(evals, [])
-        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM pair_evaluations").fetchone()[0], 0)
+        self.assertEqual(len(evals), 1)
+        self.assertFalse(evals[0].traded)
+        self.assertEqual(evals[0].reason, "stale_book")
+        row = self.conn.execute("SELECT binding_constraint FROM pair_evaluations").fetchone()
+        self.assertEqual(row[0], "stale_book")
 
     def test_missing_resolution_dates_skips_the_pair(self):
         self.conn.execute(
