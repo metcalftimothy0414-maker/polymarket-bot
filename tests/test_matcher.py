@@ -170,6 +170,14 @@ class TestStorePairs(unittest.TestCase):
         row = self.conn.execute("SELECT verified FROM pairs LIMIT 1").fetchone()
         self.assertEqual(row[0], 0)
 
+    def test_category_and_tier_persist(self):
+        proposals = find_candidate_pairs(PM_MARKETS, KALSHI_MARKETS, similarity_threshold=0.5)
+        store_pairs(self.conn, proposals)
+        row = self.conn.execute("SELECT category, tier, tier_reasons FROM pairs LIMIT 1").fetchone()
+        self.assertEqual(row[0], "sports")
+        self.assertIsInstance(row[1], int)
+        self.assertTrue(row[2].startswith("["))  # JSON array
+
     def test_duplicate_scan_does_not_reinsert(self):
         proposals = find_candidate_pairs(PM_MARKETS, KALSHI_MARKETS, similarity_threshold=0.5)
         store_pairs(self.conn, proposals)

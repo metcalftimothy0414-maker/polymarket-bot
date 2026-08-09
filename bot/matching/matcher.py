@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import sqlite3
 from dataclasses import dataclass, field
 
 from bot.matching.normalizers import normalize_tokens, normalizer_for
+from bot.matching.tiering import assign_tier
 
 # Re-exported for backward compatibility — callers/tests that imported
 # these directly from bot.matching.matcher before the §3 category-expansion
@@ -47,6 +49,12 @@ def _dates_within_tolerance(pm_date: str, k_date: str, date_tolerance_days: int)
     return abs((dt.date.fromisoformat(pm_date) - dt.date.fromisoformat(k_date)).days) <= date_tolerance_days
 
 
+def _days_from_today(date_only: str | None) -> float | None:
+    if date_only is None:
+        return None
+    return (dt.date.fromisoformat(date_only) - dt.datetime.now(dt.timezone.utc).date()).days
+
+
 @dataclass
 class ProposedPair:
     polymarket_slug: str
@@ -59,6 +67,8 @@ class ProposedPair:
     kalshi_rules: str
     kalshi_close_date: str | None
     category: str = "sports"
+    tier: int = 1
+    tier_reasons: str = "[]"
 
 
 def find_candidate_pairs_by_category(
@@ -92,6 +102,10 @@ def find_candidate_pairs_by_category(
 
             score = token_overlap_score(pm_norm.tokens, k_norm.tokens)
             if score >= similarity_threshold:
+                tier_result = assign_tier(
+                    category=category, pm=pm_norm, kalshi=k_norm,
+                    days_to_resolution=_days_from_today(pm_norm.date),
+                )
                 proposals.append(ProposedPair(
                     polymarket_slug=pm["slug"],
                     kalshi_ticker=km["ticker"],
@@ -103,6 +117,8 @@ def find_candidate_pairs_by_category(
                     kalshi_rules=f"{km.get('rules_primary', '')} {km.get('rules_secondary', '')}".strip(),
                     kalshi_close_date=km.get("close_time"),
                     category=category,
+                    tier=tier_result.tier,
+                    tier_reasons=json.dumps(tier_result.reasons),
                 ))
 
     proposals.sort(key=lambda p: p.similarity_score, reverse=True)
@@ -239,10 +255,11 @@ def store_pairs(conn: sqlite3.Connection, pairs: list[ProposedPair]) -> int:
         cur = conn.execute(
             "INSERT OR IGNORE INTO pairs "
             "(polymarket_slug, kalshi_ticker, similarity_score, polymarket_question, polymarket_description, "
-            "polymarket_end_date, kalshi_title, kalshi_rules, kalshi_close_date, category, verified, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
+            "polymarket_end_date, kalshi_title, kalshi_rules, kalshi_close_date, category, tier, tier_reasons, "
+            "verified, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
             (p.polymarket_slug, p.kalshi_ticker, p.similarity_score, p.polymarket_question, p.polymarket_description,
-             p.polymarket_end_date, p.kalshi_title, p.kalshi_rules, p.kalshi_close_date, p.category, now),
+             p.polymarket_end_date, p.kalshi_title, p.kalshi_rules, p.kalshi_close_date, p.category,
+             p.tier, p.tier_reasons, now),
         )
         inserted += cur.rowcount
     conn.commit()
