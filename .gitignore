@@ -13,3 +13,4 @@ data/*.db-journal
 .gstack/
 # generated on every publish cycle — lives on gh-pages, not main
 dashboard-site/data.json
+.worktrees/

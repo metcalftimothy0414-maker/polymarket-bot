@@ -65,6 +65,26 @@ bot run                                           # live scan + paper-trade loop
 bot report                                        # per-strategy metrics, kill criteria, comparison
 bot export [--out FILE]                           # paper_trades table as CSV
 bot dashboard [--host H] [--port P] [--ngrok]     # localhost dashboard, optional ngrok tunnel
+bot dashboard-export [--out FILE]                 # JSON snapshot for the public GitHub Pages dashboard
+```
+
+## Public dashboard (GitHub Pages)
+
+`dashboard-site/` is a self-contained static page (fetches `data.json`,
+re-renders every 30s — no server, no build step). It's published to the
+`gh-pages` branch, kept separate from `main` so data-refresh commits don't
+pollute the code history.
+
+One-time setup:
+```bash
+git worktree add -b gh-pages .worktrees/gh-pages   # or --orphan if gh-pages doesn't exist remotely yet
+gh api repos/:owner/:repo/pages -X POST -f "source[branch]=gh-pages" -f "source[path]=/"
+```
+
+While `bot run` is active, keep the dashboard fresh:
+```bash
+scripts/publish_dashboard.sh            # loops forever, publishes every ~90s
+scripts/publish_dashboard.sh --once     # single publish cycle
 ```
 
 **A pair is never traded until reviewed.** `pairs`/`odds_pairs` rows default
