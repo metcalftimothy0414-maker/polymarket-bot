@@ -10,13 +10,11 @@ from bot.config import (
     FeedsConfig,
     KalshiDivergenceStrategyConfig,
     KalshiFeedConfig,
-    LargeFlowStrategyConfig,
     LogConfig,
     OddsApiFeedConfig,
     PolymarketFeedConfig,
     Settings,
     SportsbookDivergenceStrategyConfig,
-    SportsMomentumStrategyConfig,
     StrategiesConfig,
 )
 from bot.runner import run
@@ -33,8 +31,6 @@ def _settings(tmp_db_path: str) -> Settings:
         strategies=StrategiesConfig(
             kalshi_divergence=KalshiDivergenceStrategyConfig(),
             sportsbook_divergence=SportsbookDivergenceStrategyConfig(),
-            sports_momentum=SportsMomentumStrategyConfig(),
-            large_flow=LargeFlowStrategyConfig(),
         ),
         log=LogConfig(file=tmp_db_path + ".log"),
         polymarket_api_key_id="dummy",

@@ -88,8 +88,7 @@ class PolymarketRestPoller:
         self.poll_seconds = poll_seconds
         self.books: dict[str, dict] = {}
         # There's no public REST trades endpoint, only WS (SUBSCRIPTION_TYPE_TRADE) —
-        # always empty here. Strategy D (large_flow) simply has nothing to act on
-        # while running on this fallback transport, same as it would on a dead feed.
+        # always empty here.
         self.trades: dict[str, list[dict]] = {}
         self._last_update: dict[str, float] = {}
 

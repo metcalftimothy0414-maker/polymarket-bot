@@ -12,7 +12,6 @@ from bot.feeds.odds_api import OddsApiFeedClient
 from bot.feeds.polymarket import PolymarketRestClient, PolymarketRestPoller, PolymarketWSClient, filter_by_leagues
 from bot.paper import (
     FillSimulator,
-    check_reversal_exits,
     close_positions_for_closed_opportunities,
     count_open_positions,
     daily_realized_pnl,
@@ -23,8 +22,6 @@ from bot.paper import (
 )
 from bot.state import MarketState
 from bot.strategies.divergence import DivergenceStrategy
-from bot.strategies.large_flow import LargeFlowStrategy
-from bot.strategies.sports_momentum import SportsMomentumStrategy
 from bot.strategies.sportsbook_divergence import SportsbookDivergenceStrategy
 
 logger = logging.getLogger(__name__)
@@ -101,23 +98,6 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
         s = SportsbookDivergenceStrategy(conn, state, settings.strategies.sportsbook_divergence.entry_threshold_cents)
         strategies.append(s)
         fill_timeouts[s.strategy_id] = settings.strategies.sportsbook_divergence.fill_timeout_seconds
-    if settings.strategies.sports_momentum.enabled:
-        smc = settings.strategies.sports_momentum
-        s = SportsMomentumStrategy(
-            conn, state, watchlist, smc.momentum_lookback_seconds, smc.momentum_threshold_cents,
-            smc.exit_reversal_cents, smc.max_spread_cents, smc.min_implied_prob, smc.max_implied_prob, smc.min_depth_usd,
-        )
-        strategies.append(s)
-        fill_timeouts[s.strategy_id] = smc.fill_timeout_seconds
-    if settings.strategies.large_flow.enabled:
-        lfc = settings.strategies.large_flow
-        s = LargeFlowStrategy(
-            conn, state, watchlist, lfc.size_multiple_threshold,
-            lfc.max_spread_cents, lfc.min_implied_prob, lfc.max_implied_prob, lfc.min_depth_usd,
-        )
-        strategies.append(s)
-        fill_timeouts[s.strategy_id] = lfc.fill_timeout_seconds
-
     background_tasks = [polymarket_task]
 
     if settings.feeds.kalshi.enabled:
@@ -181,9 +161,6 @@ async def _scan_loop(conn, state, strategies, fill_simulator, fill_timeouts, res
                         record_unfilled(conn, opp, settings.position_notional_usd)
 
             close_positions_for_closed_opportunities(conn, state)
-            momentum_cfg = settings.strategies.sports_momentum
-            if momentum_cfg.enabled:
-                check_reversal_exits(conn, state, momentum_cfg.exit_reversal_cents, "sports_momentum")
             await resolve_closed_markets(conn, rest, settings.feeds.polymarket.categories)
         except Exception:
             logger.exception("scan loop iteration failed")

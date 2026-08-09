@@ -33,7 +33,10 @@ class PolymarketFeedConfig(BaseModel):
 class KalshiFeedConfig(BaseModel):
     enabled: bool = True
     poll_seconds: int = 15
-    base_url: str = "https://api.elections.kalshi.com/trade-api/v2"
+    # external-api.kalshi.com is the current recommended production host;
+    # api.elections.kalshi.com / trading-api.kalshi.com are older forms still
+    # referenced in some docs. Verified 2026-08-09 (docs.kalshi.com).
+    base_url: str = "https://external-api.kalshi.com/trade-api/v2"
 
 
 class OddsApiFeedConfig(BaseModel):
@@ -66,33 +69,9 @@ class SportsbookDivergenceStrategyConfig(BaseModel):
     fill_timeout_seconds: int = 60
 
 
-class SportsMomentumStrategyConfig(BaseModel):
-    enabled: bool = True
-    momentum_lookback_seconds: float = 120
-    momentum_threshold_cents: float = 3
-    exit_reversal_cents: float = 4
-    max_spread_cents: float = 3
-    min_implied_prob: float = 0.40
-    max_implied_prob: float = 0.60
-    min_depth_usd: float = 500
-    fill_timeout_seconds: int = 10
-
-
-class LargeFlowStrategyConfig(BaseModel):
-    enabled: bool = True
-    size_multiple_threshold: float = 10.0
-    max_spread_cents: float = 3
-    min_implied_prob: float = 0.40
-    max_implied_prob: float = 0.60
-    min_depth_usd: float = 500
-    fill_timeout_seconds: int = 10
-
-
 class StrategiesConfig(BaseModel):
     kalshi_divergence: KalshiDivergenceStrategyConfig
     sportsbook_divergence: SportsbookDivergenceStrategyConfig
-    sports_momentum: SportsMomentumStrategyConfig
-    large_flow: LargeFlowStrategyConfig
 
 
 class Settings(BaseModel):

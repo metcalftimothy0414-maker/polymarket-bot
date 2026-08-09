@@ -157,8 +157,6 @@
     <button class="toggle-btn active" data-strategy="ALL">ALL</button>
     <button class="toggle-btn" data-strategy="kalshi_divergence">DIV</button>
     <button class="toggle-btn" data-strategy="sportsbook_divergence">BOOK</button>
-    <button class="toggle-btn" data-strategy="sports_momentum">MOMO</button>
-    <button class="toggle-btn" data-strategy="large_flow">FLOW</button>
   </section>
 
   <section class="stats-strip">
@@ -212,7 +210,7 @@
 </footer>
 
 <script>
-const STRATEGY_LABELS = { kalshi_divergence: "DIV", sportsbook_divergence: "BOOK", sports_momentum: "MOMO", large_flow: "FLOW" };
+const STRATEGY_LABELS = { kalshi_divergence: "DIV", sportsbook_divergence: "BOOK" };
 let currentFilter = "ALL";
 let lastState = null;
 let seenMarketPrices = {};

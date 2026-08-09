@@ -6,10 +6,10 @@ import sqlite3
 import statistics
 import sys
 
-STRATEGY_IDS = ["kalshi_divergence", "sportsbook_divergence", "sports_momentum", "large_flow"]
+STRATEGY_IDS = ["kalshi_divergence", "sportsbook_divergence"]
 # kalshi_divergence's edge is priced directly cross-venue in cents, not from a
 # win-rate-vs-entry-price comparison — the base-rate test doesn't apply to it.
-BASE_RATE_TEST_STRATEGY_IDS = ["sportsbook_divergence", "sports_momentum", "large_flow"]
+BASE_RATE_TEST_STRATEGY_IDS = ["sportsbook_divergence"]
 MIN_OPPORTUNITIES_FOR_KILL_CHECK = 100
 MIN_RESOLVED_FOR_BASE_RATE_TEST = 200
 Z_CRITICAL_95 = 1.96
@@ -45,7 +45,7 @@ def max_drawdown(conn: sqlite3.Connection, strategy_id: str) -> float:
     return worst
 
 
-def base_rate_test(conn: sqlite3.Connection, strategy_id: str = "sports_momentum") -> dict:
+def base_rate_test(conn: sqlite3.Connection, strategy_id: str = "sportsbook_divergence") -> dict:
     """Strategy C's extra kill criterion: is the realized win rate distinguishable
     from what buying at the average entry price alone would predict? Buying at
     55c and winning 55% of the time is zero edge — the null hypothesis here is

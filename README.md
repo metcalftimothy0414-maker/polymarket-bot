@@ -1,6 +1,6 @@
 # polymarket-bot
 
-Phase 1 paper-trading harness for Polymarket US. Runs four strategies in
+Phase 1 paper-trading harness for Polymarket US. Runs strategies in
 parallel against live order books, simulates fills (no real orders — there
 is no live-execution code path in this build), and logs everything
 per-strategy so the strategies can be compared and killed on evidence
@@ -10,11 +10,11 @@ rather than vibes.
 price on manually-verified cross-venue market pairs.
 **Strategy B — `sportsbook_divergence`**: de-vigged consensus odds from The
 Odds API vs. Polymarket US price, same verified-pair discipline.
-**Strategy C — `sports_momentum`**: short-window momentum on the Polymarket
-contract's own price, single-venue, mechanically filtered.
-**Strategy D — `large_flow`**: follows abnormally large trades (10x+ the
-market's rolling median trade size, configurable) off the public trade feed,
-same mechanical filters as C.
+
+`sports_momentum` (single-venue momentum) and `large_flow` (large-trade
+following) were removed 2026-08-09: both are directional/model-driven
+strategies, which the cross-venue arbitrage build (see `docs/DECISIONS.md`)
+explicitly scopes out in favor of fee-and-risk-adjusted locked-pair arb.
 
 ## Architecture
 
@@ -78,7 +78,6 @@ free money and is actually a coin flip.
 - No live orders anywhere in this codebase.
 - Scanner skips any market with order-book data older than 30s (Kalshi/Odds
   API: 60s, since they're polled not streamed).
-- Skip any market with <$500 visible book depth on the fill side (Strategy C).
 
 ## Running tests
 
