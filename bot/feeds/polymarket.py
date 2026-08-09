@@ -65,6 +65,29 @@ class PolymarketRestClient:
                 offset += page_limit
         return results
 
+    async def discover_all_markets(self, closed: bool = False, page_limit: int = 500) -> list[dict]:
+        """Every market across every category in one paginated scan, no
+        `categories` filter — confirmed live that /v1/markets returns all
+        of sports/politics/culture/finance/geopolitics/technology/macro/
+        crypto/science/climate from a single unfiltered call, so this is
+        one scan rather than discover_markets()'s one-scan-per-category
+        (which would need the category list known and kept up to date)."""
+        results: list[dict] = []
+        offset = 0
+        while True:
+            await self._bucket.acquire()
+            resp = await self._client.get(
+                "/v1/markets",
+                params={"limit": page_limit, "offset": offset, "closed": str(closed).lower()},
+            )
+            resp.raise_for_status()
+            page = resp.json().get("markets", [])
+            results.extend(page)
+            if len(page) < page_limit:
+                break
+            offset += page_limit
+        return results
+
     async def get_book(self, slug: str) -> dict:
         await self._bucket.acquire()
         resp = await self._client.get(f"/v1/markets/{slug}/book")

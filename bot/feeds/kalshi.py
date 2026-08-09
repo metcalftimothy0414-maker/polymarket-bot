@@ -77,6 +77,32 @@ class KalshiFeedClient:
                 break
         return markets
 
+    async def get_markets_bulk(
+        self, status: str = "open", limit: int = 1000, pace_seconds: float = 0.1,
+    ) -> list[dict]:
+        """Full-exchange market enumeration, no series_ticker filter — one
+        flat paginated scan instead of iterating every series individually
+        (~12.6k series vs. a few dozen pages at limit=1000). pace_seconds
+        between pages keeps this well under the Basic-tier ~20 req/s read
+        budget even during a large catalog refresh running alongside the
+        normal book-polling traffic."""
+        markets: list[dict] = []
+        cursor = None
+        while True:
+            params: dict = {"status": status, "limit": limit}
+            if cursor:
+                params["cursor"] = cursor
+            resp = await self._client.get("/markets", params=params)
+            resp.raise_for_status()
+            body = resp.json()
+            markets.extend(body.get("markets", []))
+            cursor = body.get("cursor")
+            if not cursor:
+                break
+            if pace_seconds:
+                await asyncio.sleep(pace_seconds)
+        return markets
+
     async def poll(
         self,
         tickers: list[str],

@@ -28,6 +28,7 @@ from bot.strategies.divergence import DivergenceStrategy
 from bot.strategies.locked_pair_arb import LockedPairArbStrategy
 from bot.strategies.locked_pair_arb.settlement import resolve_pair_positions
 from bot.strategies.sportsbook_divergence import SportsbookDivergenceStrategy
+from bot.universe import catalog_refresh_loop
 
 logger = logging.getLogger(__name__)
 SCAN_INTERVAL_SECONDS = 5
@@ -158,6 +159,13 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
         locked_pair_arb_strategy, kalshi_client,
     )))
     background_tasks.append(asyncio.create_task(_heartbeat_loop(conn, stop_event)))
+    # Metadata-only full-catalog discovery (§2) — its own hourly cadence,
+    # deliberately separate from the 5s scan loop and the per-ticker
+    # orderbook poll so a large catalog refresh never competes with or
+    # delays book-polling traffic.
+    background_tasks.append(asyncio.create_task(
+        catalog_refresh_loop(kalshi_client, rest, conn, stop_event)
+    ))
 
     try:
         await asyncio.gather(*background_tasks)
