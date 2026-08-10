@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-10T15:05:00.455468+00:00",
+  "generated_at": "2026-08-10T15:06:32.515408+00:00",
   "mode": "PAPER",
   "feed_health": {
     "last_heartbeat_at": "2026-08-10T15:04:09.069250+00:00",
-    "heartbeat_age_seconds": 51.386436,
+    "heartbeat_age_seconds": 143.446373,
     "runner_alive": true
   },
   "feed_statuses": {
@@ -12,7 +12,7 @@
       "last_success_at": "2026-08-10T13:25:42.414627+00:00",
       "last_error_at": "2026-08-10T13:25:40.905959+00:00",
       "last_error_message": null,
-      "last_success_age_seconds": 5958.041107
+      "last_success_age_seconds": 6050.10104
     },
     "kalshi": {
       "status": "IDLE",
@@ -97,6 +97,11 @@
   "recent_trades": [],
   "recent_pair_positions": [],
   "recent_errors": [
+    {
+      "ts": "2026-08-10T15:06:21.746238+00:00",
+      "component": "scan_loop",
+      "message": "scan loop iteration failed, see log"
+    },
     {
       "ts": "2026-08-10T13:25:20.638916+00:00",
       "component": "scan_loop",
