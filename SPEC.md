@@ -251,3 +251,52 @@ observe-only rule as any other non-sports category.
 
 Full detail — what was verified live vs. assumed, and every deliberate deviation
 from the task's own spec (with the reason why) — is in `docs/CATEGORY_EXPANSION.md`.
+
+## `sportsbook_divergence` demoted to a reference signal (2026-08-09)
+
+Strategy B (`book_divergence/`, strategy_id `sportsbook_divergence`, described above)
+is **no longer a trading strategy** — it is a reference signal only. It still scans
+verified `odds_pairs` and logs `Opportunity` rows exactly as before, but those rows
+are stored `tradeable = FALSE` and can never be promoted to a paper trade, in either
+direction:
+
+- Enforced in code, not config: `bot.strategies.base.NON_TRADEABLE_STRATEGY_IDS` is a
+  hardcoded set (not read from `config.yaml`), and `bot.paper.open_position()` — the
+  actual promotion point — refuses any opportunity from a strategy in that set,
+  regardless of what any caller upstream did or didn't filter. `strategies.sportsbook_divergence.tradeable`
+  in `config.yaml` is documentation only; flipping it to `true` does not re-enable
+  trading. Proven by test: `tests/test_paper.py::test_sportsbook_divergence_opportunity_cannot_be_promoted`.
+- Both dashboards (the public GitHub Pages export and the local live dashboard)
+  report it in its own "reference signals" panel, separated from the tradeable
+  strategies' opportunities, P&L, edge, and win-rate — it never blends into those
+  aggregate figures.
+
+Why: `docs/ODDS_API_AUDIT.md` found The Odds API quota fully exhausted (500/500
+credits used) under the pre-existing polling config, which would burn the free tier
+in ~2 hours at any realistic sport_key count. Rather than trust a tighter interval
+alone to keep this strategy live indefinitely, it's taken off the trading path
+entirely and the feed is kept only as a cheap, budget-capped reference signal:
+
+- `feeds.odds_api.poll_interval_seconds` default raised to 14400 (4h), one market
+  (`h2h`) and one region (`us`) only.
+- `feeds.odds_api.monthly_credit_budget` (400) is a hard client-side circuit
+  breaker (`bot/odds_api_budget.py`), not just a longer interval — sport_key count
+  can grow over time even with the interval fixed. It tracks a local counter keyed
+  by calendar period so it self-resets on month rollover even if polling was
+  stopped for exhausting budget (unlike mirroring the API's own `x-requests-used`,
+  which only updates on a successful call and would never observe a reset once
+  calls stop).
+- `feeds.odds_api.enabled` (default `true`) skips the strategy cleanly when `false`,
+  with the other three strategies unaffected — proven by
+  `tests/test_runner.py::test_odds_api_disabled_runs_cleanly_and_skips_that_feed`.
+- All three feeds (not just Odds API) now distinguish `DEGRADED` (most recent event
+  was an error) from `IDLE` (`bot/feed_health.py`) — a dead Kalshi poll had the same
+  silent-failure shape as the Odds API quota exhaustion that started this.
+
+The Odds API mapper (`find_odds_api_pairs`) was also consolidated onto the same
+normalizer and disambiguation logic the Kalshi mapper uses
+(`bot.matching.matcher._drop_ambiguous`) rather than maintaining a third parallel
+implementation with the same "back-to-back series" false-match bug class.
+
+Full audit numbers (credits consumed/remaining, exact burn math for the old and new
+config) are in `docs/ODDS_API_AUDIT.md`.
