@@ -134,7 +134,7 @@ def _recent_pair_positions(conn: sqlite3.Connection, limit: int = 25) -> list[di
     return [dict(r) for r in rows]
 
 
-def build_snapshot(conn: sqlite3.Connection) -> dict:
+def build_snapshot(conn: sqlite3.Connection, alert_at_remaining_pct: float = 20.0) -> dict:
     # sportsbook_divergence is a reference signal now (bot.strategies.base.
     # NON_TRADEABLE_STRATEGY_IDS) — its metrics/opportunities are reported
     # separately so they never blend into the tradeable strategies' P&L,
@@ -156,7 +156,7 @@ def build_snapshot(conn: sqlite3.Connection) -> dict:
         "mode": "PAPER",
         "feed_health": _feed_health(conn),
         "feed_statuses": _feed_statuses_with_staleness(conn),
-        "odds_api_credits": _odds_api_credits(conn),
+        "odds_api_credits": _odds_api_credits(conn, alert_at_remaining_pct),
         "pair_counts": _pair_counts(conn),
         "strategies": strategies,
         "reference_signals": reference_signals,

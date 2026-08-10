@@ -5,7 +5,7 @@ import datetime as dt
 import logging
 from decimal import Decimal
 
-from bot import db, feed_health
+from bot import db, feed_health, odds_api_budget
 from bot.config import Settings
 from bot.edge import RiskParams
 from bot.fee_multipliers import daily_refresh_loop as fee_multiplier_refresh_loop
@@ -163,7 +163,19 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
     if settings.feeds.odds_api.enabled:
         odds_sport_keys = [r[0] for r in conn.execute("SELECT DISTINCT odds_api_sport_key FROM odds_pairs WHERE verified = 1")]
         if odds_sport_keys:
-            odds_client = OddsApiFeedClient(settings.odds_api_key, settings.feeds.odds_api.base_url, settings.feeds.odds_api.regions)
+            odds_cfg = settings.feeds.odds_api
+            odds_client = OddsApiFeedClient(settings.odds_api_key, odds_cfg.base_url, odds_cfg.regions, odds_cfg.markets)
+            odds_call_cost = len(odds_cfg.markets) * len(odds_cfg.regions)
+
+            def _odds_should_call() -> bool:
+                # Reserve-and-check: recording the cost here (not in
+                # on_success/on_error) means the local budget counter tracks
+                # calls attempted, matching what the real API bills us for
+                # regardless of how the call turns out.
+                if not odds_api_budget.within_budget(conn, odds_cfg.monthly_credit_budget, odds_call_cost):
+                    return False
+                odds_api_budget.record_call_cost(conn, odds_call_cost)
+                return True
 
             async def on_odds_update(sport_key: str, games: list[dict]) -> None:
                 for game in games:
@@ -171,10 +183,11 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
 
             background_tasks.append(asyncio.create_task(
                 odds_client.poll(
-                    odds_sport_keys, on_odds_update, settings.feeds.odds_api.poll_seconds, stop_event,
+                    odds_sport_keys, on_odds_update, odds_cfg.poll_interval_seconds, stop_event,
                     on_success=lambda: feed_health.record_success(conn, "odds_api"),
                     on_error=lambda msg: feed_health.record_error(conn, "odds_api", msg),
                     on_headers=lambda h: record_odds_api_usage(conn, h, "/v4/sports/odds"),
+                    should_call=_odds_should_call,
                 )
             ))
 

@@ -277,6 +277,18 @@ CREATE TABLE IF NOT EXISTS odds_api_usage (
     credits_used INTEGER,
     endpoint TEXT
 );
+
+-- Client-side monthly credit budget (bot/odds_api_budget.py), separate from
+-- odds_api_usage above: that table mirrors what the API says our usage is,
+-- which only updates when we successfully make a call — if we stopped
+-- calling because we'd hit budget, we'd never observe a monthly reset and
+-- would stay stuck refusing forever. This table is a local counter keyed by
+-- calendar period (YYYY-MM) that resets itself on period rollover
+-- regardless of whether polling ever resumes.
+CREATE TABLE IF NOT EXISTS odds_api_monthly_budget (
+    period TEXT PRIMARY KEY,
+    credits_used INTEGER NOT NULL DEFAULT 0
+);
 """
 
 

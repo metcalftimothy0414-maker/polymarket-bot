@@ -40,10 +40,18 @@ class KalshiFeedConfig(BaseModel):
 
 
 class OddsApiFeedConfig(BaseModel):
+    # docs/ODDS_API_AUDIT.md: the old poll_seconds=30 / 2-sport_key config
+    # burned the entire 500-credit/month free tier in ~2 hours. 4h @ 1
+    # market x 1 region keeps projected burn under monthly_credit_budget —
+    # see the audit doc for the exact math, including why it's not just
+    # "cut the interval" (sport_key count can grow, hence the hard budget).
     enabled: bool = True
-    poll_seconds: int = 30
+    poll_interval_seconds: int = 14400
     base_url: str = "https://api.the-odds-api.com"
-    regions: str = "us"
+    regions: list[str] = ["us"]
+    markets: list[str] = ["h2h"]
+    monthly_credit_budget: int = 400
+    alert_at_remaining_pct: float = 20
 
 
 class FeedsConfig(BaseModel):

@@ -21,13 +21,13 @@ from bot.config import (
 from bot.runner import run
 
 
-def _settings(tmp_db_path: str) -> Settings:
+def _settings(tmp_db_path: str, odds_api_enabled: bool = True) -> Settings:
     return Settings(
         data_collection_enabled=True,
         feeds=FeedsConfig(
             polymarket=PolymarketFeedConfig(categories=["sports"], watchlist_slugs=[]),
             kalshi=KalshiFeedConfig(enabled=True),
-            odds_api=OddsApiFeedConfig(enabled=True),
+            odds_api=OddsApiFeedConfig(enabled=odds_api_enabled),
         ),
         strategies=StrategiesConfig(
             kalshi_divergence=KalshiDivergenceStrategyConfig(),
@@ -86,6 +86,44 @@ class TestRunnerWiring(unittest.TestCase):
                         await asyncio.wait_for(run(settings), timeout=1.0)
                     except asyncio.TimeoutError:
                         pass  # expected — background loops run forever until stopped
+            finally:
+                db_module.connect = original_connect
+                if os.path.exists(db_path):
+                    os.remove(db_path)
+
+        asyncio.run(scenario())
+
+    def test_odds_api_disabled_runs_cleanly_and_skips_that_feed(self):
+        """§4 acceptance criterion: feeds.odds_api.enabled=false must run the
+        bot cleanly with the other three strategies unaffected — proven here
+        by the run not crashing and OddsApiFeedClient never being constructed."""
+        async def scenario():
+            db_path = "data/test_runner_smoke_odds_disabled.db"
+            import bot.db as db_module
+            original_connect = db_module.connect
+            db_module.connect = lambda: original_connect(db_path)
+            try:
+                settings = _settings(db_path, odds_api_enabled=False)
+                with patch("bot.runner.PolymarketRestClient") as MockRest, \
+                     patch("bot.runner.PolymarketWSClient") as MockWS, \
+                     patch("bot.runner.KalshiFeedClient") as MockKalshi, \
+                     patch("bot.runner.OddsApiFeedClient") as MockOdds:
+                    mock_rest = MockRest.return_value
+                    mock_rest.discover_markets = AsyncMock(return_value=[])
+                    mock_rest.discover_all_markets = AsyncMock(return_value=[])
+                    mock_rest.aclose = AsyncMock()
+                    mock_ws = MockWS.return_value
+                    mock_ws.stream = FakeWSStream()
+                    mock_kalshi = MockKalshi.return_value
+                    mock_kalshi.get_series_list = AsyncMock(return_value=[])
+                    mock_kalshi.get_markets_bulk = AsyncMock(return_value=[])
+
+                    try:
+                        await asyncio.wait_for(run(settings), timeout=1.0)
+                    except asyncio.TimeoutError:
+                        pass  # expected — background loops run forever until stopped
+
+                    MockOdds.assert_not_called()
             finally:
                 db_module.connect = original_connect
                 if os.path.exists(db_path):

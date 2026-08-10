@@ -17,10 +17,17 @@ feeds:
     poll_seconds: 15
     base_url: "https://external-api.kalshi.com/trade-api/v2"
   odds_api:
+    # docs/ODDS_API_AUDIT.md: poll_seconds=30 with 2 verified sport_keys
+    # burned the whole 500-credit/month free tier in ~2 hours. This config
+    # projects to ~360 credits/month — under monthly_credit_budget, which
+    # is the hard stop regardless (see bot.odds_api_budget).
     enabled: true
-    poll_seconds: 30
+    poll_interval_seconds: 14400   # 4h
     base_url: "https://api.the-odds-api.com"
-    regions: "us"
+    regions: ["us"]
+    markets: ["h2h"]
+    monthly_credit_budget: 400
+    alert_at_remaining_pct: 20
 
 strategies:
   kalshi_divergence:
@@ -31,6 +38,10 @@ strategies:
     enabled: true
     entry_threshold_cents: 4.0
     fill_timeout_seconds: 60
+    # Reference signal only — enforced in code (bot.strategies.base.
+    # NON_TRADEABLE_STRATEGY_IDS / bot.paper.open_position), not by this
+    # flag. See SPEC.md.
+    tradeable: false
   locked_pair_arb:
     enabled: true
     min_abs_edge_cents: 1.0        # build prompt §5.4 default

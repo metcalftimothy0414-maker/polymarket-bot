@@ -199,7 +199,8 @@ def main() -> None:
             from pathlib import Path
             from bot.export_dashboard import build_snapshot
             conn = db.connect()
-            snapshot = build_snapshot(conn)
+            settings = load_settings()
+            snapshot = build_snapshot(conn, alert_at_remaining_pct=settings.feeds.odds_api.alert_at_remaining_pct)
             out_path = Path(args.out)
             out_path.parent.mkdir(parents=True, exist_ok=True)
             out_path.write_text(json.dumps(snapshot, indent=2))
