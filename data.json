@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-10T15:15:47.349423+00:00",
+  "generated_at": "2026-08-10T15:17:19.433558+00:00",
   "mode": "PAPER",
   "feed_health": {
     "last_heartbeat_at": "2026-08-10T15:14:09.057322+00:00",
-    "heartbeat_age_seconds": 98.292519,
+    "heartbeat_age_seconds": 190.376896,
     "runner_alive": true
   },
   "feed_statuses": {
@@ -12,7 +12,7 @@
       "last_success_at": "2026-08-10T13:25:42.414627+00:00",
       "last_error_at": "2026-08-10T13:25:40.905959+00:00",
       "last_error_message": null,
-      "last_success_age_seconds": 6604.935356
+      "last_success_age_seconds": 6697.019734
     },
     "kalshi": {
       "status": "IDLE",
@@ -98,6 +98,11 @@
   "recent_pair_positions": [],
   "recent_errors": [
     {
+      "ts": "2026-08-10T15:16:12.922546+00:00",
+      "component": "scan_loop",
+      "message": "scan loop iteration failed, see log"
+    },
+    {
       "ts": "2026-08-10T15:14:59.215537+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
@@ -139,11 +144,6 @@
     },
     {
       "ts": "2026-08-10T15:09:11.322943+00:00",
-      "component": "scan_loop",
-      "message": "scan loop iteration failed, see log"
-    },
-    {
-      "ts": "2026-08-10T15:08:46.915974+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     }
