@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from bot.db import SCHEMA
 from bot.feeds.kalshi import KalshiFeedClient
 from bot.feeds.polymarket import PolymarketRestClient
-from bot.universe import discover_kalshi_catalog, discover_polymarket_catalog, kalshi_series_ticker
+from bot.universe import catalog_refresh_loop, discover_kalshi_catalog, discover_polymarket_catalog, kalshi_series_ticker
 
 
 class KalshiSeriesTickerTests(unittest.TestCase):
@@ -136,6 +136,42 @@ class DiscoverAllMarketsTests(unittest.TestCase):
             # confirm no `categories` param was sent
             for call in mock_get.call_args_list:
                 self.assertNotIn("categories", call.kwargs.get("params", {}))
+
+        asyncio.run(scenario())
+
+
+class CatalogRefreshLoopTests(unittest.TestCase):
+    def test_one_iteration_refreshes_polling_tiers(self):
+        async def scenario():
+            conn = sqlite3.connect(":memory:")
+            conn.executescript(SCHEMA)
+            conn.execute(
+                "INSERT INTO pairs (id, polymarket_slug, kalshi_ticker, similarity_score, verified, tier, created_at) "
+                "VALUES (1, 's', 'k', 1.0, 1, NULL, 'now')"
+            )
+            conn.commit()
+
+            kalshi_client = KalshiFeedClient("https://example.invalid", poll_seconds=1)
+            kalshi_client.get_series_list = AsyncMock(return_value=[])
+            kalshi_client.get_markets_bulk = AsyncMock(return_value=[])
+            rest_client = PolymarketRestClient(rate_limit_per_sec=1000)
+            rest_client.discover_all_markets = AsyncMock(return_value=[])
+
+            stop_event = asyncio.Event()
+
+            async def stop_after_one_pass():
+                await asyncio.sleep(0.05)
+                stop_event.set()
+
+            await asyncio.gather(
+                catalog_refresh_loop(kalshi_client, rest_client, conn, stop_event, interval_seconds=0.01),
+                stop_after_one_pass(),
+            )
+            await kalshi_client.aclose()
+            await rest_client.aclose()
+
+            row = conn.execute("SELECT polling_tier FROM pairs WHERE id = 1").fetchone()
+            self.assertEqual(row[0], "A")  # verified=1 -> Tier A, proves refresh_polling_tiers ran
 
         asyncio.run(scenario())
 

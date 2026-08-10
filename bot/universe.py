@@ -11,6 +11,7 @@ import sqlite3
 
 from bot.feeds.kalshi import KalshiFeedClient
 from bot.feeds.polymarket import PolymarketRestClient
+from bot.polling_tiers import demote_inactive_tier_b_pairs, refresh_polling_tiers
 
 logger = logging.getLogger(__name__)
 
@@ -105,15 +106,21 @@ async def catalog_refresh_loop(
     conn: sqlite3.Connection,
     stop_event: asyncio.Event | None = None,
     interval_seconds: float = CATALOG_REFRESH_INTERVAL_SECONDS,
+    max_reviewable_tier: int = 3,
 ) -> None:
-    """Runs both discovery scans back to back, then sleeps. Separate task
-    from the 5s scan loop and from the per-ticker orderbook poll — this is
-    metadata enumeration, not book polling, and must not compete with it."""
+    """Runs both discovery scans back to back, then re-derives every pair's
+    polling tier (§6) and demotes inactive Tier B pairs, then sleeps.
+    Separate task from the 5s scan loop and from the per-ticker orderbook
+    poll — this is metadata enumeration, not book polling, and must not
+    compete with it."""
     while stop_event is None or not stop_event.is_set():
         try:
             if kalshi_client is not None:
                 await discover_kalshi_catalog(kalshi_client, conn)
             await discover_polymarket_catalog(rest_client, conn)
+            counts = refresh_polling_tiers(conn, max_reviewable_tier=max_reviewable_tier)
+            demoted = demote_inactive_tier_b_pairs(conn)
+            logger.info("Polling tiers: %s (demoted %d inactive Tier B pairs to C)", counts, demoted)
         except Exception:
             logger.exception("Catalog discovery failed")
         await asyncio.sleep(interval_seconds)
