@@ -10,6 +10,8 @@ from __future__ import annotations
 import datetime as dt
 import sqlite3
 
+from bot.feed_health import all_feed_statuses
+from bot.odds_api_usage import latest_usage as latest_odds_api_usage
 from bot.report import STRATEGY_IDS, base_rate_test, evaluate_kill_criteria, locked_pair_arb_metrics, strategy_metrics
 from bot.runner import HEARTBEAT_INTERVAL_SECONDS
 
@@ -53,6 +55,32 @@ def _recent_errors(conn: sqlite3.Connection, limit: int = 10, max_age_hours: flo
     rows = conn.execute("SELECT ts, component, message FROM errors ORDER BY ts DESC LIMIT ?", (limit,)).fetchall()
     cutoff_seconds = max_age_hours * 3600
     return [dict(r) for r in rows if (age := _seconds_since(r["ts"])) is not None and age <= cutoff_seconds]
+
+
+def _feed_statuses_with_staleness(conn: sqlite3.Connection) -> dict:
+    """DEGRADED vs IDLE, per feed (bot.feed_health) — not the same as the
+    runner-level heartbeat above. A feed can be DEGRADED (Kalshi 401ing on
+    every request) while the runner process itself is perfectly alive."""
+    statuses = all_feed_statuses(conn)
+    for status in statuses.values():
+        status["last_success_age_seconds"] = _seconds_since(status["last_success_at"])
+    return statuses
+
+
+def _odds_api_credits(conn: sqlite3.Connection, alert_at_remaining_pct: float = 20.0) -> dict:
+    usage = latest_odds_api_usage(conn)
+    if usage is None:
+        return {"credits_remaining": None, "credits_used": None, "last_observed_at": None, "low_credits_alert": False}
+    remaining = usage["credits_remaining"]
+    used = usage["credits_used"]
+    total = (remaining + used) if remaining is not None and used is not None else None
+    pct_remaining = (remaining / total * 100) if total else None
+    return {
+        "credits_remaining": remaining,
+        "credits_used": used,
+        "last_observed_at": usage["ts"],
+        "low_credits_alert": pct_remaining is not None and pct_remaining <= alert_at_remaining_pct,
+    }
 
 
 def _pair_counts(conn: sqlite3.Connection) -> dict:
@@ -113,6 +141,8 @@ def build_snapshot(conn: sqlite3.Connection) -> dict:
         "generated_at": _now_iso(),
         "mode": "PAPER",
         "feed_health": _feed_health(conn),
+        "feed_statuses": _feed_statuses_with_staleness(conn),
+        "odds_api_credits": _odds_api_credits(conn),
         "pair_counts": _pair_counts(conn),
         "strategies": strategies,
         "locked_pair_arb": locked_pair_arb_metrics(conn),

@@ -108,14 +108,20 @@ class KalshiFeedClient:
         tickers: list[str],
         on_update: Callable[[str, dict], Awaitable[None]],
         stop_event: asyncio.Event | None = None,
+        on_success: Callable[[], None] | None = None,
+        on_error: Callable[[str], None] | None = None,
     ) -> None:
         while stop_event is None or not stop_event.is_set():
             for ticker in tickers:
                 try:
                     book = await self.get_orderbook(ticker)
                     await on_update(ticker, book)
+                    if on_success:
+                        on_success()
                 except (httpx.HTTPError, KalshiResponseError) as exc:
                     logger.warning("Kalshi poll failed for %s: %s", ticker, exc)
+                    if on_error:
+                        on_error(str(exc))
             await asyncio.sleep(self.poll_seconds)
 
     async def aclose(self) -> None:

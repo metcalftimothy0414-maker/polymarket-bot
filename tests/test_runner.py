@@ -47,7 +47,7 @@ class FakeWSStream:
     def __init__(self) -> None:
         self.last_market_slugs: list[str] | None = None
 
-    async def __call__(self, market_slugs, on_update, stop_event=None):
+    async def __call__(self, market_slugs, on_update, stop_event=None, **_kwargs):
         self.last_market_slugs = market_slugs
         if stop_event is not None:
             await stop_event.wait()

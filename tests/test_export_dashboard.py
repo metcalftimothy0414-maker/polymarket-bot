@@ -31,6 +31,26 @@ class BuildSnapshotTests(unittest.TestCase):
         snapshot = build_snapshot(conn)
         self.assertTrue(snapshot["feed_health"]["runner_alive"])
 
+    def test_feed_statuses_present_for_all_known_feeds(self):
+        conn = sqlite3.connect(":memory:")
+        conn.executescript(SCHEMA)
+        snapshot = build_snapshot(conn)
+        for name in ("polymarket", "kalshi", "odds_api"):
+            self.assertIn(name, snapshot["feed_statuses"])
+            self.assertEqual(snapshot["feed_statuses"][name]["status"], "IDLE")
+
+    def test_odds_api_credits_reflects_recorded_usage(self):
+        conn = sqlite3.connect(":memory:")
+        conn.executescript(SCHEMA)
+        conn.execute(
+            "INSERT INTO odds_api_usage (ts, credits_remaining, credits_used, endpoint) VALUES (?, ?, ?, ?)",
+            ("2026-08-09T00:00:00Z", 10, 90, "/v4/sports/odds"),
+        )
+        conn.commit()
+        snapshot = build_snapshot(conn)
+        self.assertEqual(snapshot["odds_api_credits"]["credits_remaining"], 10)
+        self.assertTrue(snapshot["odds_api_credits"]["low_credits_alert"])  # 10% remaining <= 20% alert threshold
+
     def test_old_errors_are_excluded_from_recent_errors(self):
         import datetime as dt
         conn = sqlite3.connect(":memory:")

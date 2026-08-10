@@ -5,7 +5,7 @@ import datetime as dt
 import logging
 from decimal import Decimal
 
-from bot import db
+from bot import db, feed_health
 from bot.config import Settings
 from bot.edge import RiskParams
 from bot.fee_multipliers import daily_refresh_loop as fee_multiplier_refresh_loop
@@ -13,6 +13,7 @@ from bot.feeds.auth import PolymarketAuth
 from bot.feeds.kalshi import KalshiFeedClient
 from bot.feeds.odds_api import OddsApiFeedClient
 from bot.feeds.polymarket import PolymarketRestClient, PolymarketRestPoller, PolymarketWSClient, filter_by_leagues
+from bot.odds_api_usage import record_usage as record_odds_api_usage
 from bot.paper import (
     FillSimulator,
     close_positions_for_closed_opportunities,
@@ -82,14 +83,26 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
     watchlist = list(dict.fromkeys([*verified_pm_slugs, *watchlist]))[: settings.feeds.polymarket.max_markets_per_connection]
 
     stop_event = asyncio.Event()
+
+    def _on_polymarket_success() -> None:
+        feed_health.record_success(conn, "polymarket")
+
+    def _on_polymarket_error(message: str) -> None:
+        feed_health.record_error(conn, "polymarket", message)
+
     use_rest_poll = settings.feeds.polymarket.transport == "rest_poll"
     if use_rest_poll:
         book_source = PolymarketRestPoller(rest, settings.feeds.polymarket.rest_poll_seconds)
-        polymarket_task = asyncio.create_task(book_source.poll(watchlist, stop_event))
+        polymarket_task = asyncio.create_task(book_source.poll(
+            watchlist, stop_event, on_success=_on_polymarket_success, on_error=_on_polymarket_error,
+        ))
     else:
         auth = PolymarketAuth(settings.polymarket_api_key_id, settings.polymarket_private_key)
         book_source = PolymarketWSClient(auth)
-        polymarket_task = asyncio.create_task(book_source.stream(watchlist, _on_polymarket_update, stop_event=stop_event))
+        polymarket_task = asyncio.create_task(book_source.stream(
+            watchlist, _on_polymarket_update, stop_event=stop_event,
+            on_success=_on_polymarket_success, on_error=_on_polymarket_error,
+        ))
 
     state = MarketState(book_source)
     fill_simulator = FillSimulator(state)
@@ -139,7 +152,11 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
                 state.kalshi.update(ticker, book)
 
             background_tasks.append(asyncio.create_task(
-                kalshi_client.poll(kalshi_tickers, on_kalshi_update, stop_event)
+                kalshi_client.poll(
+                    kalshi_tickers, on_kalshi_update, stop_event,
+                    on_success=lambda: feed_health.record_success(conn, "kalshi"),
+                    on_error=lambda msg: feed_health.record_error(conn, "kalshi", msg),
+                )
             ))
 
     if settings.feeds.odds_api.enabled:
@@ -152,7 +169,12 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
                     state.odds_api.update(game["id"], game)
 
             background_tasks.append(asyncio.create_task(
-                odds_client.poll(odds_sport_keys, on_odds_update, settings.feeds.odds_api.poll_seconds, stop_event)
+                odds_client.poll(
+                    odds_sport_keys, on_odds_update, settings.feeds.odds_api.poll_seconds, stop_event,
+                    on_success=lambda: feed_health.record_success(conn, "odds_api"),
+                    on_error=lambda msg: feed_health.record_error(conn, "odds_api", msg),
+                    on_headers=lambda h: record_odds_api_usage(conn, h, "/v4/sports/odds"),
+                )
             ))
 
     background_tasks.append(asyncio.create_task(_scan_loop(

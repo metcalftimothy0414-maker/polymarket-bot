@@ -253,6 +253,29 @@ CREATE TABLE IF NOT EXISTS divergence_periods (
     peak_edge REAL NOT NULL,
     duration_seconds REAL
 );
+
+-- DEGRADED vs IDLE (not the same thing — see bot/feed_health.py). One row
+-- per feed, upserted on every success/error so status is always the most
+-- recent event, not an accumulating log.
+CREATE TABLE IF NOT EXISTS feed_health (
+    feed_name TEXT PRIMARY KEY,
+    last_success_at TEXT,
+    last_error_at TEXT,
+    last_error_message TEXT,
+    updated_at TEXT NOT NULL
+);
+
+-- The Odds API's x-requests-remaining/x-requests-used headers, captured on
+-- every call (success or error — both carry them, confirmed live against
+-- an exhausted-quota 401). One row per observation; the dashboard reads
+-- the latest. See docs/ODDS_API_AUDIT.md.
+CREATE TABLE IF NOT EXISTS odds_api_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    credits_remaining INTEGER,
+    credits_used INTEGER,
+    endpoint TEXT
+);
 """
 
 

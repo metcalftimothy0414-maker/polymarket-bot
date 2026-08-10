@@ -51,6 +51,34 @@ class TestKalshiFeedClient(unittest.TestCase):
 
         asyncio.run(scenario())
 
+    def test_poll_calls_on_success_and_on_error_hooks(self):
+        async def scenario():
+            client = KalshiFeedClient("https://example.invalid", poll_seconds=0.01)
+
+            async def fake_get_orderbook(ticker):
+                if ticker == "BAD":
+                    raise KalshiResponseError("boom")
+                return {"yes": [[50, 100]]}
+
+            client.get_orderbook = fake_get_orderbook
+
+            successes, errors = [], []
+            stop_event = asyncio.Event()
+            task = asyncio.create_task(client.poll(
+                ["BAD", "GOOD"], lambda t, b: asyncio.sleep(0), stop_event,
+                on_success=lambda: successes.append(1), on_error=lambda msg: errors.append(msg),
+            ))
+            await asyncio.sleep(0.05)
+            stop_event.set()
+            await task
+            await client.aclose()
+
+            self.assertGreater(len(successes), 0)
+            self.assertGreater(len(errors), 0)
+            self.assertIn("boom", errors[0])
+
+        asyncio.run(scenario())
+
     def test_get_series_list_follows_pagination_cursor(self):
         async def scenario():
             client = KalshiFeedClient("https://example.invalid", poll_seconds=1)

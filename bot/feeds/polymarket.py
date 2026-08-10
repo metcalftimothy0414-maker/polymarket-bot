@@ -120,15 +120,23 @@ class PolymarketRestPoller:
         ts = self._last_update.get(slug)
         return ts is None or (now - ts) > STALE_SECONDS
 
-    async def poll(self, market_slugs: list[str], stop_event: asyncio.Event | None = None) -> None:
+    async def poll(
+        self, market_slugs: list[str], stop_event: asyncio.Event | None = None,
+        on_success: Callable[[], None] | None = None,
+        on_error: Callable[[str], None] | None = None,
+    ) -> None:
         while stop_event is None or not stop_event.is_set():
             for slug in market_slugs:
                 try:
                     book = await self.rest_client.get_book(slug)
                     self.books[slug] = book
                     self._last_update[slug] = time.monotonic()
+                    if on_success:
+                        on_success()
                 except httpx.HTTPError as exc:
                     logger.warning("REST book poll failed for %s: %s", slug, exc)
+                    if on_error:
+                        on_error(str(exc))
             await asyncio.sleep(self.poll_seconds)
 
 
@@ -157,6 +165,8 @@ class PolymarketWSClient:
         market_slugs: list[str],
         on_update: Callable[[dict], Awaitable[None]],
         stop_event: asyncio.Event | None = None,
+        on_success: Callable[[], None] | None = None,
+        on_error: Callable[[str], None] | None = None,
     ) -> None:
         if len(market_slugs) > MAX_MARKETS_PER_CONNECTION:
             raise ValueError(f"max {MAX_MARKETS_PER_CONNECTION} markets per WS connection, got {len(market_slugs)}")
@@ -167,6 +177,8 @@ class PolymarketWSClient:
                 headers = self.auth.headers("GET", WS_PATH)
                 async with websockets.connect(self.ws_url, additional_headers=headers) as ws:
                     backoff = 1.0
+                    if on_success:
+                        on_success()  # a live connection is itself a success signal
                     await ws.send(json.dumps({
                         "subscribe": {
                             "requestId": "md-sub-1",
@@ -195,5 +207,7 @@ class PolymarketWSClient:
                             del history[:-TRADE_HISTORY_PER_MARKET]
             except (websockets.exceptions.ConnectionClosed, OSError, asyncio.TimeoutError) as exc:
                 logger.warning("Polymarket WS disconnected (%s); reconnecting in %.0fs", exc, backoff)
+                if on_error:
+                    on_error(str(exc))
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 60.0)
