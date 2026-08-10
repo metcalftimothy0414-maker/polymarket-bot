@@ -12,6 +12,15 @@ def hash_params(params: dict) -> str:
     return hashlib.sha256(json.dumps(params, sort_keys=True).encode()).hexdigest()[:12]
 
 
+# Hardcoded, not sourced from config.yaml — a strategy in this set can never
+# reach a paper trade regardless of what strategies.<id>.tradeable says in
+# config. bot.paper.open_position() re-checks this directly at the actual
+# promotion point; this set is the single source of truth it and
+# insert_opportunity() both read from, so config can't drift out of sync
+# with (or accidentally re-enable) the gate.
+NON_TRADEABLE_STRATEGY_IDS = frozenset({"sportsbook_divergence"})
+
+
 def find_open_opportunity(conn: sqlite3.Connection, strategy_id: str, market_ref: str) -> sqlite3.Row | None:
     conn.row_factory = sqlite3.Row
     return conn.execute(
@@ -25,13 +34,14 @@ def insert_opportunity(
     direction: str, signal_value: float, entry_price: float, top_levels: dict, now: str,
     extra: dict | None = None,
 ) -> int:
+    tradeable = strategy_id not in NON_TRADEABLE_STRATEGY_IDS
     cur = conn.execute(
         "INSERT INTO opportunities "
         "(strategy_id, params_hash, pair_id, market_ref, direction, signal_value, entry_price, "
-        "top_levels_json, extra_json, detected_at, last_seen_at, status) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')",
+        "top_levels_json, extra_json, detected_at, last_seen_at, status, tradeable) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)",
         (strategy_id, params_hash, pair_id, market_ref, direction, signal_value,
-         entry_price, json.dumps(top_levels), json.dumps(extra or {}), now, now),
+         entry_price, json.dumps(top_levels), json.dumps(extra or {}), now, now, int(tradeable)),
     )
     return cur.lastrowid
 

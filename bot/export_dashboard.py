@@ -14,6 +14,7 @@ from bot.feed_health import all_feed_statuses
 from bot.odds_api_usage import latest_usage as latest_odds_api_usage
 from bot.report import STRATEGY_IDS, base_rate_test, evaluate_kill_criteria, locked_pair_arb_metrics, strategy_metrics
 from bot.runner import HEARTBEAT_INTERVAL_SECONDS
+from bot.strategies.base import NON_TRADEABLE_STRATEGY_IDS
 
 # runner.py heartbeats every HEARTBEAT_INTERVAL_SECONDS (300s) — a threshold
 # tighter than that would flag a perfectly healthy bot as stale in the gap
@@ -92,11 +93,15 @@ def _pair_counts(conn: sqlite3.Connection) -> dict:
     }
 
 
-def _recent_opportunities(conn: sqlite3.Connection, limit: int = 25) -> list[dict]:
+def _recent_opportunities(conn: sqlite3.Connection, tradeable: bool, limit: int = 25) -> list[dict]:
+    """tradeable=False returns reference-signal rows (e.g. sportsbook_divergence)
+    — kept in their own list so the dashboard can visually separate them from
+    real, promotable opportunities rather than mixing both in one table."""
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
         "SELECT strategy_id, market_ref, direction, signal_value, entry_price, detected_at, status "
-        "FROM opportunities ORDER BY detected_at DESC LIMIT ?", (limit,),
+        "FROM opportunities WHERE tradeable = ? ORDER BY detected_at DESC LIMIT ?",
+        (int(tradeable), limit),
     ).fetchall()
     return [dict(r) for r in rows]
 
@@ -130,12 +135,21 @@ def _recent_pair_positions(conn: sqlite3.Connection, limit: int = 25) -> list[di
 
 
 def build_snapshot(conn: sqlite3.Connection) -> dict:
+    # sportsbook_divergence is a reference signal now (bot.strategies.base.
+    # NON_TRADEABLE_STRATEGY_IDS) — its metrics/opportunities are reported
+    # separately so they never blend into the tradeable strategies' P&L,
+    # edge, or win-rate figures.
     strategies = {}
+    reference_signals = {}
     for sid in STRATEGY_IDS:
         m = strategy_metrics(conn, sid)
         br = base_rate_test(conn, sid) if sid == "sportsbook_divergence" else None
         is_dead, reasons = evaluate_kill_criteria(m, br)
-        strategies[sid] = {**m, "base_rate_test": br, "dead": is_dead, "kill_reasons": reasons}
+        entry = {**m, "base_rate_test": br, "dead": is_dead, "kill_reasons": reasons}
+        if sid in NON_TRADEABLE_STRATEGY_IDS:
+            reference_signals[sid] = entry
+        else:
+            strategies[sid] = entry
 
     return {
         "generated_at": _now_iso(),
@@ -145,9 +159,11 @@ def build_snapshot(conn: sqlite3.Connection) -> dict:
         "odds_api_credits": _odds_api_credits(conn),
         "pair_counts": _pair_counts(conn),
         "strategies": strategies,
+        "reference_signals": reference_signals,
         "locked_pair_arb": locked_pair_arb_metrics(conn),
         "markets_discovered": conn.execute("SELECT COUNT(*) FROM markets").fetchone()[0],
-        "recent_opportunities": _recent_opportunities(conn),
+        "recent_opportunities": _recent_opportunities(conn, tradeable=True),
+        "recent_reference_signals": _recent_opportunities(conn, tradeable=False),
         "recent_pair_evaluations": _recent_pair_evaluations(conn),
         "recent_trades": _recent_trades(conn),
         "recent_pair_positions": _recent_pair_positions(conn),

@@ -11,6 +11,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from bot import db
+from bot.strategies.base import NON_TRADEABLE_STRATEGY_IDS
 
 STATIC_DIR = Path(__file__).parent / "static"
 POLL_INTERVAL_SECONDS = 1.5
@@ -31,7 +32,17 @@ def build_state(conn: sqlite3.Connection) -> dict:
     conn.row_factory = sqlite3.Row
     today = _today()
 
-    closed_trades = conn.execute("SELECT * FROM paper_trades WHERE status = 'closed'").fetchall()
+    # Excludes NON_TRADEABLE_STRATEGY_IDS (sportsbook_divergence) so a
+    # reference-only signal can never blend into the headline P&L/win-rate —
+    # it gets its own line in per_strategy_pnl below instead. In practice
+    # those strategies never reach paper_trades at all (bot.paper.open_position
+    # refuses them), but this is the same belt-and-suspenders as that guard:
+    # correct even against stale pre-demotion rows.
+    non_tradeable_placeholders = ",".join("?" * len(NON_TRADEABLE_STRATEGY_IDS))
+    closed_trades = conn.execute(
+        f"SELECT * FROM paper_trades WHERE status = 'closed' AND strategy_id NOT IN ({non_tradeable_placeholders})",
+        tuple(NON_TRADEABLE_STRATEGY_IDS),
+    ).fetchall()
     total_pnl = sum(t["realized_pnl_usd"] or 0 for t in closed_trades)
     win_rate = (
         sum(1 for t in closed_trades if (t["realized_pnl_usd"] or 0) > 0) / len(closed_trades)
@@ -60,7 +71,9 @@ def build_state(conn: sqlite3.Connection) -> dict:
         equity_curves[sid] = curve
 
     all_rows = conn.execute(
-        "SELECT realized_pnl_usd, closed_at FROM paper_trades WHERE status = 'closed' ORDER BY closed_at"
+        f"SELECT realized_pnl_usd, closed_at FROM paper_trades WHERE status = 'closed' "
+        f"AND strategy_id NOT IN ({non_tradeable_placeholders}) ORDER BY closed_at",
+        tuple(NON_TRADEABLE_STRATEGY_IDS),
     ).fetchall()
     cumulative = 0.0
     for r in all_rows[-MAX_EQUITY_POINTS:]:

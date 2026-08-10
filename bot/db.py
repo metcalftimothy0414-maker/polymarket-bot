@@ -87,7 +87,8 @@ CREATE TABLE IF NOT EXISTS opportunities (
     persistence_seconds REAL,
     status TEXT NOT NULL DEFAULT 'open',
     counterfactual_60s REAL,
-    counterfactual_300s REAL
+    counterfactual_300s REAL,
+    tradeable INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS candidates (
@@ -299,6 +300,13 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE pairs ADD COLUMN tier_reasons TEXT")
     if "polling_tier" not in pairs_columns:
         conn.execute("ALTER TABLE pairs ADD COLUMN polling_tier TEXT NOT NULL DEFAULT 'C'")
+
+    # sportsbook_divergence demotion: existing rows default to tradeable=1
+    # (the column's own DEFAULT), matching their pre-demotion status; new
+    # rows get the real value from insert_opportunity().
+    opportunities_columns = {row[1] for row in conn.execute("PRAGMA table_info(opportunities)")}
+    if "tradeable" not in opportunities_columns:
+        conn.execute("ALTER TABLE opportunities ADD COLUMN tradeable INTEGER NOT NULL DEFAULT 1")
 
 
 def connect(db_path: str | Path = "data/bot.db") -> sqlite3.Connection:

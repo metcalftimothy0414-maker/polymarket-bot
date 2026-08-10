@@ -16,9 +16,11 @@ class BuildSnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot["mode"], "PAPER")
         self.assertIn("generated_at", snapshot)
         self.assertIn("kalshi_divergence", snapshot["strategies"])
-        self.assertIn("sportsbook_divergence", snapshot["strategies"])
+        self.assertNotIn("sportsbook_divergence", snapshot["strategies"])
+        self.assertIn("sportsbook_divergence", snapshot["reference_signals"])
         self.assertEqual(snapshot["pair_counts"]["kalshi_pairs_total"], 0)
         self.assertEqual(snapshot["recent_opportunities"], [])
+        self.assertEqual(snapshot["recent_reference_signals"], [])
         self.assertFalse(snapshot["feed_health"]["runner_alive"])
 
     def test_heartbeat_marks_runner_alive(self):

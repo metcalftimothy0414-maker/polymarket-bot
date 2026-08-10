@@ -9,7 +9,7 @@ from bot.fees import taker_fee
 from bot.feeds.polymarket import PolymarketRestClient
 from bot.pricing import polymarket_best_bid_ask
 from bot.state import MarketState
-from bot.strategies.base import Opportunity
+from bot.strategies.base import NON_TRADEABLE_STRATEGY_IDS, Opportunity
 
 
 class FillSimulator:
@@ -70,6 +70,14 @@ def daily_realized_pnl(conn: sqlite3.Connection, strategy_id: str) -> float:
 def open_position(
     conn: sqlite3.Connection, opportunity: Opportunity, fill_price: float, notional_usd: float,
 ) -> int:
+    if opportunity.strategy_id in NON_TRADEABLE_STRATEGY_IDS:
+        # The actual promotion point — checked here regardless of what any
+        # caller upstream did or didn't filter, so this strategy can never
+        # end up with a paper trade no matter how it's called.
+        raise ValueError(
+            f"{opportunity.strategy_id!r} is not tradeable (reference signal only) — "
+            "refusing to open a paper position for it"
+        )
     shares = notional_usd / fill_price
     entry_fee = shares * taker_fee(fill_price)
     now = _now()

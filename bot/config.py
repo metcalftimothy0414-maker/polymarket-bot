@@ -67,6 +67,10 @@ class SportsbookDivergenceStrategyConfig(BaseModel):
     enabled: bool = True
     entry_threshold_cents: float = 4.0
     fill_timeout_seconds: int = 60
+    # Documentation only — the actual gate is bot.strategies.base.NON_TRADEABLE_STRATEGY_IDS,
+    # checked in code at bot.paper.open_position(). Flipping this to true here
+    # does not re-enable trading; see docs/ODDS_API_AUDIT.md and SPEC.md.
+    tradeable: bool = False
 
 
 class LockedPairArbStrategyConfig(BaseModel):

@@ -90,6 +90,17 @@ class TestSportsbookDivergenceStrategy(unittest.TestCase):
         opps = self._scan()
         self.assertEqual(opps, [])
 
+    def test_opportunity_row_is_stored_not_tradeable(self):
+        # sportsbook_divergence is a reference signal (bot.strategies.base.
+        # NON_TRADEABLE_STRATEGY_IDS) — its opportunities log normally but
+        # must be flagged so the dashboard/promotion path can never treat
+        # them like a real, tradeable opportunity.
+        self.ws.books["pm-slug"] = pm_book(0.50, 0.51)
+        self.state.odds_api.update("game-1", odds_game([(1.6, 2.6)]))
+        self._scan()
+        row = self.conn.execute("SELECT tradeable FROM opportunities").fetchone()
+        self.assertEqual(row[0], 0)
+
     def test_unverified_pair_is_never_scanned(self):
         self.conn.execute(
             "INSERT INTO odds_pairs (id, polymarket_slug, odds_api_game_id, odds_api_sport_key, long_team, "

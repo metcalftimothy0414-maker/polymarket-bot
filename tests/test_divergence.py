@@ -61,6 +61,15 @@ class TestDivergenceStrategy(unittest.TestCase):
         row = self.conn.execute("SELECT status FROM opportunities").fetchone()
         self.assertEqual(row[0], "open")
 
+    def test_opportunity_row_is_stored_tradeable(self):
+        # Unlike sportsbook_divergence (see test_sportsbook_divergence.py),
+        # kalshi_divergence stays on the trading path.
+        self.ws.books["pm-slug"] = pm_book(0.50, 0.51)
+        self.state.kalshi.update("K-TICKER", k_book(0.58, 0.42))
+        self._scan()
+        row = self.conn.execute("SELECT tradeable FROM opportunities").fetchone()
+        self.assertEqual(row[0], 1)
+
     def test_persists_without_duplicate_row_while_still_open(self):
         self.ws.books["pm-slug"] = pm_book(0.50, 0.51)
         self.state.kalshi.update("K-TICKER", k_book(0.58, 0.42))

@@ -83,6 +83,11 @@
   </section>
 
   <section>
+    <h2>Reference signals — not tradeable, observation only</h2>
+    <div class="grid" id="reference-signal-cards"></div>
+  </section>
+
+  <section>
     <h2>locked_pair_arb — cross-venue arbitrage (Type 3)</h2>
     <div class="card">
       <div class="kv-grid" id="lpa-stats"></div>
@@ -93,6 +98,15 @@
     <h2>Recent opportunities</h2>
     <div class="table-scroll">
       <table id="opp-table"><thead><tr>
+        <th>Time</th><th>Strategy</th><th>Market</th><th>Direction</th><th>Signal</th><th>Entry</th><th>Status</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Recent reference signals — not tradeable</h2>
+    <div class="table-scroll">
+      <table id="ref-opp-table"><thead><tr>
         <th>Time</th><th>Strategy</th><th>Market</th><th>Direction</th><th>Signal</th><th>Entry</th><th>Status</th>
       </tr></thead><tbody></tbody></table>
     </div>
@@ -140,9 +154,21 @@ const ago = (iso) => {
   return Math.floor(secs / 3600) + 'h ago';
 };
 
+function feedStatusCard(label, status) {
+  if (!status) return '';
+  const isDegraded = status.status === 'DEGRADED';
+  return `
+    <div class="card"><div class="label">${esc(label)} feed</div>
+      <div class="value ${isDegraded ? 'loss' : 'profit'}">${esc(status.status)}</div>
+      <div class="sub">last success ${ago(status.last_success_at)}${isDegraded && status.last_error_message ? ' — ' + esc(status.last_error_message) : ''}</div></div>
+  `;
+}
+
 function renderTopStats(d) {
   const fh = d.feed_health;
   const pc = d.pair_counts;
+  const fs = d.feed_statuses || {};
+  const credits = d.odds_api_credits || {};
   $('#top-stats').innerHTML = `
     <div class="card"><div class="label">Runner status</div>
       <div class="value ${fh.runner_alive ? 'profit' : 'loss'}">${fh.runner_alive ? 'RUNNING' : 'STALE'}</div>
@@ -155,14 +181,20 @@ function renderTopStats(d) {
     <div class="card"><div class="label">Odds API pairs</div>
       <div class="value">${pc.odds_pairs_verified} <span class="muted" style="font-size:14px">/ ${pc.odds_pairs_total}</span></div>
       <div class="sub">verified / candidates</div></div>
+    ${feedStatusCard('Polymarket', fs.polymarket)}
+    ${feedStatusCard('Kalshi', fs.kalshi)}
+    ${feedStatusCard('Odds API', fs.odds_api)}
+    <div class="card"><div class="label">Odds API credits remaining</div>
+      <div class="value ${credits.low_credits_alert ? 'loss' : ''}">${credits.credits_remaining ?? '—'}</div>
+      <div class="sub">${credits.low_credits_alert ? 'LOW — ' : ''}as of ${ago(credits.last_observed_at)}</div></div>
   `;
   const dot = $('#status-dot');
   dot.className = 'status-dot ' + (fh.runner_alive ? 'live' : 'stale');
   $('#status-text').textContent = fh.runner_alive ? 'live' : 'stale — bot not currently running';
 }
 
-function renderStrategyCards(d) {
-  const html = Object.entries(d.strategies).map(([sid, m]) => `
+function strategyCardHtml(sid, m) {
+  return `
     <div class="card">
       <div class="strategy-header">
         <span class="sid">${esc(sid)}</span>
@@ -177,8 +209,14 @@ function renderStrategyCards(d) {
         <div><div class="k">Total P&amp;L</div><span class="${m.total_pnl_usd > 0 ? 'profit' : m.total_pnl_usd < 0 ? 'loss' : ''}">$${fmt(m.total_pnl_usd)}</span></div>
       </div>
     </div>
-  `).join('');
-  $('#strategy-cards').innerHTML = html;
+  `;
+}
+
+function renderStrategyCards(d) {
+  $('#strategy-cards').innerHTML = Object.entries(d.strategies).map(([sid, m]) => strategyCardHtml(sid, m)).join('');
+  $('#reference-signal-cards').innerHTML =
+    Object.entries(d.reference_signals || {}).map(([sid, m]) => strategyCardHtml(sid, m)).join('')
+    || '<div class="card muted">No reference signals.</div>';
 }
 
 function renderLockedPairArb(d) {
@@ -214,6 +252,11 @@ function render(d) {
     r => ago(r.detected_at), r => esc(r.strategy_id), r => esc(r.market_ref),
     r => esc(r.direction), r => fmt(r.signal_value, 4), r => fmt(r.entry_price), r => esc(r.status),
   ], 'No opportunities detected yet — waiting on verified pairs.');
+
+  renderTable('#ref-opp-table', d.recent_reference_signals, [
+    r => ago(r.detected_at), r => esc(r.strategy_id), r => esc(r.market_ref),
+    r => esc(r.direction), r => fmt(r.signal_value, 4), r => fmt(r.entry_price), r => esc(r.status),
+  ], 'No reference signals yet.');
 
   renderTable('#eval-table', d.recent_pair_evaluations, [
     r => ago(r.ts), r => r.pair_id, r => esc(r.direction),

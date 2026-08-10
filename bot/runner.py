@@ -25,6 +25,7 @@ from bot.paper import (
     resolve_closed_markets,
 )
 from bot.state import MarketState
+from bot.strategies.base import NON_TRADEABLE_STRATEGY_IDS
 from bot.strategies.divergence import DivergenceStrategy
 from bot.strategies.locked_pair_arb import LockedPairArbStrategy
 from bot.strategies.locked_pair_arb.settlement import resolve_pair_positions
@@ -211,6 +212,14 @@ async def _scan_loop(
                     continue  # this strategy is done for the day; the others keep running
 
                 opportunities = await strategy.scan()
+                if strategy.strategy_id in NON_TRADEABLE_STRATEGY_IDS:
+                    # Reference signal only — scan() still logs Opportunity
+                    # rows (tradeable=0, see bot.strategies.base), but the
+                    # fill/promotion step below is never reached for it.
+                    # bot.paper.open_position() also refuses this strategy_id
+                    # directly, so this is a scan-loop-noise optimization,
+                    # not the actual enforcement.
+                    continue
                 for opp in opportunities:
                     if count_open_positions(conn) >= settings.max_concurrent_positions:
                         break

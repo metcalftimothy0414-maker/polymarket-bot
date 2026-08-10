@@ -95,6 +95,19 @@ class TestPositionLifecycle(unittest.TestCase):
         self.assertAlmostEqual(trade["entry_fee"], shares * 0.06 * 0.50 * 0.50)
         self.assertEqual(trade["status"], "open")
 
+    def test_sportsbook_divergence_opportunity_cannot_be_promoted(self):
+        # sportsbook_divergence is a reference signal (bot.strategies.base.
+        # NON_TRADEABLE_STRATEGY_IDS) — open_position must refuse it
+        # regardless of config, since this is the actual promotion point.
+        opp = Opportunity(
+            strategy_id="sportsbook_divergence", params_hash="abc123", detected_at="now",
+            market_ref="pm-slug", direction="buy_polymarket", signal_value=0.05,
+            entry_price=0.50, top_levels_json="{}",
+        )
+        with self.assertRaises(ValueError):
+            open_position(self.conn, opp, fill_price=0.50, notional_usd=10)
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM paper_trades").fetchone()[0], 0)
+
     def test_close_by_signal_profitable_long(self):
         opp = make_opportunity("buy_polymarket", 0.50)
         trade_id = open_position(self.conn, opp, fill_price=0.50, notional_usd=10)
