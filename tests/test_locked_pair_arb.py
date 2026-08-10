@@ -67,9 +67,9 @@ class LockedPairArbStrategyTests(unittest.TestCase):
         self.assertEqual(len(traded), 1)
         self.assertEqual(traded[0].direction, "buy_kalshi_yes_poly_no")
 
-        row = self.conn.execute(
+        row = tuple(self.conn.execute(
             "SELECT direction, size, leg_a_venue, leg_b_venue, status FROM pair_positions"
-        ).fetchone()
+        ).fetchone())
         self.assertEqual(row, ("buy_kalshi_yes_poly_no", row[1], "kalshi", "polymarket", "open"))
         self.assertGreater(row[1], 0)
 
@@ -145,6 +145,33 @@ class LockedPairArbStrategyTests(unittest.TestCase):
         self.state.kalshi.update("KXTEST-25-YES", k_book(0.28, 0.70))
         evals = asyncio.run(strategy.scan())
         self.assertTrue(any(e.traded for e in evals))
+
+    def test_unverified_tier_b_pair_is_scored_but_never_trades(self):
+        # §7's research goal: unverified candidates get evaluated and
+        # logged (does divergence exist outside sports?) but the verified
+        # gate is absolute regardless of what decide() concludes.
+        self.conn.execute("UPDATE pairs SET verified = 0, tier = 2, polling_tier = 'B' WHERE id = 1")
+        self.conn.commit()
+        strategy = LockedPairArbStrategy(self.conn, self.state, max_reviewable_tier=3)
+        self.ws.books["pm-slug"] = pm_book(0.80, 0.82)
+        self.state.kalshi.update("KXTEST-25-YES", k_book(0.28, 0.70))
+        evals = asyncio.run(strategy.scan())
+
+        self.assertEqual(len(evals), 2)  # still evaluated, both directions
+        self.assertTrue(all(not e.traded for e in evals))
+        self.assertTrue(any(e.reason == "unverified_pair_not_tradeable" for e in evals))
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM pair_positions").fetchone()[0], 0)
+
+    def test_unverified_pair_not_in_tier_b_is_never_scanned(self):
+        # polling_tier defaults to 'C' — an unverified pair the tier-refresh
+        # loop hasn't classified as B yet must not be evaluated at all.
+        self.conn.execute("UPDATE pairs SET verified = 0, tier = 2, polling_tier = 'C' WHERE id = 1")
+        self.conn.commit()
+        strategy = LockedPairArbStrategy(self.conn, self.state, max_reviewable_tier=3)
+        self.ws.books["pm-slug"] = pm_book(0.80, 0.82)
+        self.state.kalshi.update("KXTEST-25-YES", k_book(0.28, 0.70))
+        evals = asyncio.run(strategy.scan())
+        self.assertEqual(evals, [])
 
     def test_null_tier_is_not_gated(self):
         # Pairs verified before tiering existed have tier=NULL — must not

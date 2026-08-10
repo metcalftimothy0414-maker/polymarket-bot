@@ -34,6 +34,7 @@ from bot.edge import (
     polymarket_fee,
     risk_adjusted_edge,
 )
+from bot.persistence_tracking import update_divergence_period
 from bot.pricing import (
     kalshi_no_ask_depth,
     kalshi_yes_ask_depth,
@@ -241,15 +242,22 @@ class LockedPairArbStrategy:
         now_dt = dt.datetime.now(dt.timezone.utc)
         evaluations: list[PairEvaluation] = []
 
+        # Verified pairs (Tier A, trading-eligible) plus unverified Tier B
+        # candidates (reviewable divergence tier, not yet human-approved) —
+        # the latter are evaluated and logged for the research question the
+        # whole category-expansion task exists to answer (does divergence
+        # persist outside sports?) but can NEVER open a position; see the
+        # `verified` gate right before open_pair_position below.
         pairs = self.conn.execute(
-            "SELECT id, polymarket_slug, kalshi_ticker, polymarket_end_date, kalshi_close_date, tier "
-            "FROM pairs WHERE verified = 1"
+            "SELECT id, polymarket_slug, kalshi_ticker, polymarket_end_date, kalshi_close_date, tier, "
+            "category, verified FROM pairs WHERE verified = 1 OR polling_tier = 'B'"
         ).fetchall()
 
-        for pair_id, pm_slug, k_ticker, pm_end, k_close, tier in pairs:
+        for pair_id, pm_slug, k_ticker, pm_end, k_close, tier, category, verified in pairs:
             if tier is not None and tier > self.max_reviewable_tier:
                 ev = self._skipped_evaluation(pair_id, "tier_too_high")
                 _log_evaluation(self.conn, ev, now)
+                update_divergence_period(self.conn, pair_id=pair_id, category=category, tier=tier or 0, gross_edge=None, now=now)
                 evaluations.append(ev)
                 continue
 
@@ -260,6 +268,7 @@ class LockedPairArbStrategy:
             if book_missing or book_stale:
                 ev = self._skipped_evaluation(pair_id, "stale_book")
                 _log_evaluation(self.conn, ev, now)
+                update_divergence_period(self.conn, pair_id=pair_id, category=category, tier=tier or 0, gross_edge=None, now=now)
                 evaluations.append(ev)
                 continue
 
@@ -284,14 +293,30 @@ class LockedPairArbStrategy:
             ]
 
             already_open = has_open_pair_position(self.conn, pair_id)
+            best_gross_edge = None
             for ev in evals:
-                _log_evaluation(self.conn, ev, now)
-                if ev.traded and already_open:
+                if ev.gross_edge_per_contract is not None:
+                    best_gross_edge = ev.gross_edge_per_contract if best_gross_edge is None else max(best_gross_edge, ev.gross_edge_per_contract)
+
+                if not verified and ev.traded:
+                    # Tier B candidate: score and log for the persistence
+                    # dataset, but the verified gate is absolute — decide()
+                    # doesn't know about verification status, so this check
+                    # can't be skipped just because it agreed to trade.
+                    ev.traded, ev.reason = False, "unverified_pair_not_tradeable"
+                elif ev.traded and already_open:
                     ev.traded, ev.reason = False, "pair_already_has_open_position"
-                elif ev.traded:
+
+                _log_evaluation(self.conn, ev, now)
+                if verified and ev.traded:
                     open_pair_position(self.conn, pair_id, ev)
                     already_open = True
                 evaluations.append(ev)
+
+            update_divergence_period(
+                self.conn, pair_id=pair_id, category=category, tier=tier or 0,
+                gross_edge=float(best_gross_edge) if best_gross_edge is not None else None, now=now,
+            )
 
         self.conn.commit()
         return evaluations
