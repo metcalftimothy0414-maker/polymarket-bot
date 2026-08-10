@@ -42,6 +42,28 @@ strategies:
     p_divergence: 0.02             # pessimistic prior; calibrate per category once settlements accumulate
     asymmetry: 0.85
 
+# Category expansion (see docs/CATEGORY_EXPANSION.md). Non-sports pairs
+# are discovered/matched/scored/logged but never tradeable by default —
+# observe_only_categories is enforced in code
+# (bot.matching.cli._interactive_review), not just here.
+universe:
+  categories_enabled: ["sports", "economic_indicator", "politics_elections", "numeric_threshold", "generic"]
+  observe_only_categories: ["economic_indicator", "politics_elections", "numeric_threshold", "generic"]
+  max_days_to_resolution: 365
+
+gates:
+  min_net_edge_cents: 1.0
+  min_annual_return: 0.25
+  max_reviewable_tier: 3   # tier 4-5 pairs are logged but excluded from `bot pairs-review` by default
+
+polling:
+  tier_a_seconds: 15.0     # verified pairs — matches feeds.kalshi.poll_seconds, unchanged cadence
+  tier_b_seconds: 60.0     # unverified candidates, tier <= gates.max_reviewable_tier
+  tier_c_seconds: 600.0    # everything else — metadata-only (bot.universe catalog refresh), no book polling
+  max_requests_per_minute:
+    kalshi: 1200           # Basic tier: ~20 req/s, verified live 2026-08-09
+    polymarket_us: 1200    # 20 req/s per API key, docs.polymarket.us/api-reference/rate-limits, verified live 2026-08-09
+
 position_notional_usd: 10
 max_concurrent_positions: 5     # global, across strategies
 daily_sim_loss_stop_usd: 50     # per strategy — one dying doesn't halt the other

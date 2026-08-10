@@ -116,6 +116,7 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
             max_size_per_pair=lpa.max_size_per_pair,
             notional_usd_cap=Decimal(str(lpa.notional_usd_cap)),
             settlement_lag_days=Decimal(str(lpa.settlement_lag_days)),
+            max_reviewable_tier=settings.gates.max_reviewable_tier,
             risk=RiskParams(p_divergence=Decimal(str(lpa.p_divergence)), asymmetry=Decimal(str(lpa.asymmetry))),
         )
 
@@ -164,7 +165,7 @@ async def run(settings: Settings, allow_live: bool = False) -> None:
     # orderbook poll so a large catalog refresh never competes with or
     # delays book-polling traffic.
     background_tasks.append(asyncio.create_task(
-        catalog_refresh_loop(kalshi_client, rest, conn, stop_event)
+        catalog_refresh_loop(kalshi_client, rest, conn, stop_event, max_reviewable_tier=settings.gates.max_reviewable_tier)
     ))
 
     try:

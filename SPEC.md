@@ -228,3 +228,26 @@ despite the original spec saying "B and C" — generalized it to run for
 `kalshi_divergence`, whose edge is priced directly cross-venue in cents). Also fixed a
 stale `divergence` key (pre-rename) in the dashboard's `STRATEGY_LABELS` JS map, found
 while adding the `FLOW` toggle next to it.
+
+## Category expansion (2026-08-09) — extends this spec, does not replace it
+
+`kalshi_divergence` and `locked_pair_arb` now discover, match, score, and log every
+market that can be cross-matched between Kalshi and Polymarket US, across all
+categories — not just sports. **Observe-only by default**: non-sports categories
+(`economic_indicator`, `politics_elections`, `numeric_threshold`, `generic`) can
+never reach `verified = TRUE`, enforced in code
+(`bot/matching/cli.py::_interactive_review`), not just `config.yaml`. This is a
+tested, verified constraint — see `tests/test_observe_only.py`. All existing
+sports pairs, strategies, and tests are unchanged (regression-tested explicitly,
+see `tests/test_matcher.py::TestCategoryExpansionRegression`).
+
+This **supersedes** the line above about "NO crypto Up/Down markets — do not build
+anything BTC-related": crypto is now one of the discovered/matched categories (via
+`numeric_threshold`), per explicit operator instruction ("literally anything that
+has crossplatform matches") in the same session that scoped this task. No dedicated
+crypto strategy exists — crypto markets flow through the same generic
+discovery/matching/scoring pipeline as everything else, gated by the same
+observe-only rule as any other non-sports category.
+
+Full detail — what was verified live vs. assumed, and every deliberate deviation
+from the task's own spec (with the reason why) — is in `docs/CATEGORY_EXPANSION.md`.

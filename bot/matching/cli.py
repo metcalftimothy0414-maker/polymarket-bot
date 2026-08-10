@@ -122,6 +122,9 @@ def _interactive_review(
     table: str,
     rows: list[tuple],
     print_row: Callable[[tuple], None],
+    *,
+    get_category: Callable[[tuple], str | None] | None = None,
+    observe_only_categories: set[str] | None = None,
 ) -> None:
     if not rows:
         print("No unverified pairs pending review.")
@@ -133,11 +136,19 @@ def _interactive_review(
         pair_id = row[0]
         print_row(row)
 
+        category = get_category(row) if get_category else None
+        is_observe_only = bool(observe_only_categories) and category in observe_only_categories
+        if is_observe_only:
+            print(f"category={category!r} is observe-only (config.yaml universe.observe_only_categories) — "
+                  f"cannot be verified, [n]o reject or [s]kip only.\n")
+
         while True:
-            choice = input("Approve this pair? [y/n/s/q]: ").strip().lower()
-            if choice in ("y", "n", "s", "q"):
+            prompt = "[n]o reject / [s]kip / [q]uit: " if is_observe_only else "Approve this pair? [y/n/s/q]: "
+            choice = input(prompt).strip().lower()
+            valid = ("n", "s", "q") if is_observe_only else ("y", "n", "s", "q")
+            if choice in valid:
                 break
-            print("Please enter y, n, s, or q.")
+            print(f"Please enter one of: {', '.join(valid)}.")
 
         if choice == "q":
             print("Stopping review.")
@@ -145,6 +156,12 @@ def _interactive_review(
         if choice == "s":
             continue
         if choice == "y":
+            # Enforced in code, not just the prompt above — never trust a
+            # UI-layer check alone for something this task calls "never
+            # weaken the verified gate."
+            if is_observe_only:
+                print(f"refused: category={category!r} is observe-only, cannot be verified.\n")
+                continue
             conn.execute(f"UPDATE {table} SET verified = 1, reviewed_at = ? WHERE id = ?", (_now(), pair_id))
             print("approved.\n")
         elif choice == "n":
@@ -153,7 +170,12 @@ def _interactive_review(
         conn.commit()
 
 
-def pairs_review(conn: sqlite3.Connection, category: str | None = None, max_tier: int | None = None) -> None:
+def pairs_review(
+    conn: sqlite3.Connection,
+    category: str | None = None,
+    max_tier: int | None = None,
+    observe_only_categories: set[str] | None = None,
+) -> None:
     """--category/--max-tier (§8) surface the highest-value candidates
     first: sorted by each pair's most recent annualized_return (from
     pair_evaluations — locked_pair_arb scores unverified Tier B candidates
@@ -194,7 +216,11 @@ def pairs_review(conn: sqlite3.Connection, category: str | None = None, max_tier
         print(f"  resolution criteria:\n{textwrap.indent(textwrap.fill(k_rules or '(none)', 96), '    ')}")
         print("=" * 100)
 
-    _interactive_review(conn, "pairs", rows, print_row)
+    _interactive_review(
+        conn, "pairs", rows, print_row,
+        get_category=lambda row: row[10],
+        observe_only_categories=observe_only_categories,
+    )
 
 
 def odds_pairs_review(conn: sqlite3.Connection) -> None:

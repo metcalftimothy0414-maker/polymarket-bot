@@ -160,7 +160,10 @@ def main() -> None:
             settings = load_settings()
             setup_logging(settings.log.level, settings.log.file)
             conn = db.connect()
-            pairs_review(conn, category=args.category, max_tier=args.max_tier)
+            pairs_review(
+                conn, category=args.category, max_tier=args.max_tier,
+                observe_only_categories=set(settings.universe.observe_only_categories),
+            )
         elif args.command == "odds-pairs-scan":
             settings = load_settings()
             setup_logging(settings.log.level, settings.log.file)

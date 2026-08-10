@@ -90,11 +90,46 @@ class StrategiesConfig(BaseModel):
     locked_pair_arb: LockedPairArbStrategyConfig
 
 
+class UniverseConfig(BaseModel):
+    categories_enabled: list[str] = ["sports", "economic_indicator", "politics_elections", "numeric_threshold", "generic"]
+    # Enforced in code (bot.matching.cli._interactive_review), not just
+    # config — a pair in one of these categories can never reach
+    # verified=1 regardless of what a reviewer types. See tests in
+    # tests/test_observe_only.py.
+    observe_only_categories: list[str] = ["economic_indicator", "politics_elections", "numeric_threshold", "generic"]
+    max_days_to_resolution: int = 365
+
+
+class GatesConfig(BaseModel):
+    min_net_edge_cents: float = 1.0
+    min_annual_return: float = 0.25
+    max_reviewable_tier: int = 3
+
+
+class MaxRequestsPerMinuteConfig(BaseModel):
+    # Kalshi Basic tier: 200 read tokens/sec, 10 tokens/read request ->
+    # ~20 req/s -> ~1200/min. Polymarket US Retail API: 20 req/s per API
+    # key (docs.polymarket.us/api-reference/rate-limits) -> 1200/min. Both
+    # verified live 2026-08-09 — see docs/CATEGORY_EXPANSION.md.
+    kalshi: int = 1200
+    polymarket_us: int = 1200
+
+
+class PollingConfig(BaseModel):
+    tier_a_seconds: float = 15.0  # matches feeds.kalshi.poll_seconds by default; verified pairs, unchanged cadence
+    tier_b_seconds: float = 60.0
+    tier_c_seconds: float = 600.0
+    max_requests_per_minute: MaxRequestsPerMinuteConfig = MaxRequestsPerMinuteConfig()
+
+
 class Settings(BaseModel):
     data_collection_enabled: bool = False
     feeds: FeedsConfig
     strategies: StrategiesConfig
     log: LogConfig
+    universe: UniverseConfig = UniverseConfig()
+    gates: GatesConfig = GatesConfig()
+    polling: PollingConfig = PollingConfig()
     position_notional_usd: float = 10
     max_concurrent_positions: int = 5
     daily_sim_loss_stop_usd: float = 50
