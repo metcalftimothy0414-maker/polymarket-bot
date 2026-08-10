@@ -154,9 +154,21 @@ const ago = (iso) => {
   return Math.floor(secs / 3600) + 'h ago';
 };
 
+function feedStatusCard(label, status) {
+  if (!status) return '';
+  const isDegraded = status.status === 'DEGRADED';
+  return `
+    <div class="card"><div class="label">${esc(label)} feed</div>
+      <div class="value ${isDegraded ? 'loss' : 'profit'}">${esc(status.status)}</div>
+      <div class="sub">last success ${ago(status.last_success_at)}${isDegraded && status.last_error_message ? ' — ' + esc(status.last_error_message) : ''}</div></div>
+  `;
+}
+
 function renderTopStats(d) {
   const fh = d.feed_health;
   const pc = d.pair_counts;
+  const fs = d.feed_statuses || {};
+  const credits = d.odds_api_credits || {};
   $('#top-stats').innerHTML = `
     <div class="card"><div class="label">Runner status</div>
       <div class="value ${fh.runner_alive ? 'profit' : 'loss'}">${fh.runner_alive ? 'RUNNING' : 'STALE'}</div>
@@ -169,6 +181,12 @@ function renderTopStats(d) {
     <div class="card"><div class="label">Odds API pairs</div>
       <div class="value">${pc.odds_pairs_verified} <span class="muted" style="font-size:14px">/ ${pc.odds_pairs_total}</span></div>
       <div class="sub">verified / candidates</div></div>
+    ${feedStatusCard('Polymarket', fs.polymarket)}
+    ${feedStatusCard('Kalshi', fs.kalshi)}
+    ${feedStatusCard('Odds API', fs.odds_api)}
+    <div class="card"><div class="label">Odds API credits remaining</div>
+      <div class="value ${credits.low_credits_alert ? 'loss' : ''}">${credits.credits_remaining ?? '—'}</div>
+      <div class="sub">${credits.low_credits_alert ? 'LOW — ' : ''}as of ${ago(credits.last_observed_at)}</div></div>
   `;
   const dot = $('#status-dot');
   dot.className = 'status-dot ' + (fh.runner_alive ? 'live' : 'stale');
