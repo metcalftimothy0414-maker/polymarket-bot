@@ -153,17 +153,37 @@ def _interactive_review(
         conn.commit()
 
 
-def pairs_review(conn: sqlite3.Connection) -> None:
+def pairs_review(conn: sqlite3.Connection, category: str | None = None, max_tier: int | None = None) -> None:
+    """--category/--max-tier (§8) surface the highest-value candidates
+    first: sorted by each pair's most recent annualized_return (from
+    pair_evaluations — locked_pair_arb scores unverified Tier B candidates
+    too, see §7) descending, non-null first."""
+    where = ["p.verified = 0"]
+    params: list = []
+    if category:
+        where.append("p.category = ?")
+        params.append(category)
+    if max_tier is not None:
+        where.append("(p.tier IS NULL OR p.tier <= ?)")
+        params.append(max_tier)
+
     rows = conn.execute(
-        "SELECT id, polymarket_slug, kalshi_ticker, similarity_score, polymarket_question, "
-        "polymarket_description, polymarket_end_date, kalshi_title, kalshi_rules, kalshi_close_date "
-        "FROM pairs WHERE verified = 0 ORDER BY similarity_score DESC"
+        "SELECT p.id, p.polymarket_slug, p.kalshi_ticker, p.similarity_score, p.polymarket_question, "
+        "p.polymarket_description, p.polymarket_end_date, p.kalshi_title, p.kalshi_rules, p.kalshi_close_date, "
+        "p.category, p.tier, "
+        "(SELECT pe.annualized_return FROM pair_evaluations pe WHERE pe.pair_id = p.id "
+        " AND pe.annualized_return IS NOT NULL ORDER BY pe.ts DESC LIMIT 1) AS latest_annual_return "
+        f"FROM pairs p WHERE {' AND '.join(where)} "
+        "ORDER BY (latest_annual_return IS NULL), latest_annual_return DESC, p.similarity_score DESC",
+        params,
     ).fetchall()
 
     def print_row(row: tuple) -> None:
-        (pair_id, pm_slug, k_ticker, score, pm_q, pm_desc, pm_end, k_title, k_rules, k_close) = row
+        (pair_id, pm_slug, k_ticker, score, pm_q, pm_desc, pm_end, k_title, k_rules, k_close,
+         pair_category, tier, annual_return) = row
         print("=" * 100)
-        print(f"pair #{pair_id}  similarity={score}")
+        annual_str = f"{annual_return:.1%}" if annual_return is not None else "n/a"
+        print(f"pair #{pair_id}  category={pair_category}  tier={tier}  similarity={score}  latest_annual_return={annual_str}")
         print("-" * 100)
         print(f"POLYMARKET  slug={pm_slug}  ends={pm_end}")
         print(f"  question: {pm_q}")

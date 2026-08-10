@@ -14,6 +14,7 @@ from bot.logging_conf import setup_logging
 from bot.matching.cli import odds_pairs_review, odds_pairs_scan, pairs_review, pairs_scan
 from bot.report import export_csv, print_report
 from bot.runner import run as run_bot
+from bot.scan_report import print_scan_report
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +110,9 @@ def main() -> None:
     )
     scan.add_argument("--allow-live", action="store_true", help="Override data_collection_enabled=false for this run")
 
-    sub.add_parser("pairs-review", help="Interactively approve/reject proposed pairs")
+    review = sub.add_parser("pairs-review", help="Interactively approve/reject proposed pairs")
+    review.add_argument("--category", default=None, choices=["sports", "economic_indicator", "politics_elections", "numeric_threshold", "generic"])
+    review.add_argument("--max-tier", type=int, default=None, help="Only review pairs at or below this divergence tier")
 
     odds_scan = sub.add_parser("odds-pairs-scan", help="Discover candidate Polymarket <-> Odds API pairs")
     odds_scan.add_argument("--polymarket-category", required=True)
@@ -124,6 +127,7 @@ def main() -> None:
     run_parser.add_argument("--allow-live", action="store_true", help="Override data_collection_enabled=false for this run")
 
     sub.add_parser("report", help="Print per-strategy metrics, kill criteria, and a side-by-side comparison")
+    sub.add_parser("scan-report", help="Print per-category discovery/matching/scoring/persistence breakdown")
 
     export = sub.add_parser("export", help="Dump the paper trade log as CSV")
     export.add_argument("--out", default="paper_trades.csv")
@@ -156,7 +160,7 @@ def main() -> None:
             settings = load_settings()
             setup_logging(settings.log.level, settings.log.file)
             conn = db.connect()
-            pairs_review(conn)
+            pairs_review(conn, category=args.category, max_tier=args.max_tier)
         elif args.command == "odds-pairs-scan":
             settings = load_settings()
             setup_logging(settings.log.level, settings.log.file)
@@ -172,6 +176,9 @@ def main() -> None:
         elif args.command == "report":
             conn = db.connect()
             print_report(conn)
+        elif args.command == "scan-report":
+            conn = db.connect()
+            print_scan_report(conn)
         elif args.command == "export":
             conn = db.connect()
             count = export_csv(conn, args.out)
