@@ -139,26 +139,29 @@ def find_candidate_pairs(
     return find_candidate_pairs_by_category("sports", polymarket_markets, kalshi_markets, similarity_threshold, date_tolerance_days)
 
 
-def _drop_ambiguous_pairs(proposals: list[ProposedPair]) -> list[ProposedPair]:
-    """A team can play the same opponent on consecutive days (a series), and
-    a game near midnight ET can land on either UTC calendar date depending
-    on start time — so one Kalshi ticker can satisfy the date+token check
-    against more than one DISTINCT Polymarket market for the same matchup
-    (confirmed live: 'Milwaukee vs San Diego' on two different days both
-    matched the same Kalshi ticker). There's no way to tell from title+date
-    alone which specific game a ticker refers to in that situation, so
-    exclude the whole ambiguous group rather than guess — a wrong guess
+def _drop_ambiguous(proposals: list, key_a, key_b) -> list:
+    """Shared disambiguation, used for both Kalshi and Odds API pairing: a
+    team can play the same opponent on consecutive days (a series), and a
+    game near midnight ET can land on either UTC calendar date depending on
+    start time — so one venue-A key can satisfy the date+token check against
+    more than one DISTINCT venue-B key for the same matchup (confirmed live:
+    'Milwaukee vs San Diego' on two different days both matched the same
+    Kalshi ticker; the same back-to-back-series shape applies to Odds API
+    game_id<->Polymarket slug pairing). There's no way to tell from
+    title+date alone which specific game a key refers to in that situation,
+    so exclude the whole ambiguous group rather than guess — a wrong guess
     here is a false pair, not a rescheduling nuance."""
-    kalshi_to_slugs: dict[str, set[str]] = {}
-    slug_to_kalshis: dict[str, set[str]] = {}
+    a_to_bs: dict[str, set[str]] = {}
+    b_to_as: dict[str, set[str]] = {}
     for p in proposals:
-        kalshi_to_slugs.setdefault(p.kalshi_ticker, set()).add(p.polymarket_slug)
-        slug_to_kalshis.setdefault(p.polymarket_slug, set()).add(p.kalshi_ticker)
+        a_to_bs.setdefault(key_a(p), set()).add(key_b(p))
+        b_to_as.setdefault(key_b(p), set()).add(key_a(p))
 
-    return [
-        p for p in proposals
-        if len(kalshi_to_slugs[p.kalshi_ticker]) == 1 and len(slug_to_kalshis[p.polymarket_slug]) == 1
-    ]
+    return [p for p in proposals if len(a_to_bs[key_a(p)]) == 1 and len(b_to_as[key_b(p)]) == 1]
+
+
+def _drop_ambiguous_pairs(proposals: list[ProposedPair]) -> list[ProposedPair]:
+    return _drop_ambiguous(proposals, lambda p: p.kalshi_ticker, lambda p: p.polymarket_slug)
 
 
 def _long_team_name(pm_market: dict) -> str | None:
@@ -190,8 +193,16 @@ def find_odds_api_pairs(
     similarity_threshold: float = 0.6,
     date_tolerance_days: int = 0,
 ) -> list[ProposedOddsPair]:
+    """The Odds API is a third venue with the same false-match risk as the
+    Kalshi mapper (bot.matching.matcher.find_candidate_pairs_by_category) —
+    this reuses that mapper's Polymarket-side normalization (gameStartTime,
+    not endDate — same field SportsNormalizer.normalize_kalshi's
+    occurrence_datetime fix addressed on the Kalshi side), its date-
+    tolerance check, and its ambiguous-match rejection, rather than
+    maintaining a parallel implementation of all three."""
+    sports_normalizer = normalizer_for("sports")
     pm_indexed = [
-        (m, normalize_tokens(m["question"]), _date_only(m.get("gameStartTime") or m.get("endDate")), _long_team_name(m))
+        (m, sports_normalizer.normalize_polymarket(m), _long_team_name(m))
         for m in polymarket_markets
     ]
 
@@ -201,16 +212,13 @@ def find_odds_api_pairs(
         g_tokens = normalize_tokens(matchup)
         g_date = _date_only(game.get("commence_time"))
 
-        for pm, pm_tokens, pm_date, long_team in pm_indexed:
-            if pm_date is None or g_date is None or long_team is None:
+        for pm, pm_norm, long_team in pm_indexed:
+            if pm_norm.date is None or g_date is None or long_team is None:
                 continue
-            if date_tolerance_days == 0:
-                if pm_date != g_date:
-                    continue
-            elif abs((dt.date.fromisoformat(pm_date) - dt.date.fromisoformat(g_date)).days) > date_tolerance_days:
+            if not _dates_within_tolerance(pm_norm.date, g_date, date_tolerance_days):
                 continue
 
-            score = token_overlap_score(pm_tokens, g_tokens)
+            score = token_overlap_score(pm_norm.tokens, g_tokens)
             if score >= similarity_threshold:
                 proposals.append(ProposedOddsPair(
                     polymarket_slug=pm["slug"],
@@ -226,7 +234,7 @@ def find_odds_api_pairs(
                 ))
 
     proposals.sort(key=lambda p: p.similarity_score, reverse=True)
-    return proposals
+    return _drop_ambiguous(proposals, lambda p: p.odds_api_game_id, lambda p: p.polymarket_slug)
 
 
 def store_odds_pairs(conn: sqlite3.Connection, pairs: list[ProposedOddsPair]) -> int:

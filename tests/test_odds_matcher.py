@@ -110,6 +110,50 @@ class TestFindOddsApiPairs(unittest.TestCase):
         proposals = find_odds_api_pairs(PM_MARKETS, ODDS_GAMES, similarity_threshold=0.5)
         self.assertTrue(all(p.polymarket_slug != "aec-nba-no-long-flag" for p in proposals))
 
+    def test_back_to_back_series_game_is_dropped_not_guessed(self):
+        # §5 regression: a team can play the same opponent on consecutive
+        # days (a series) — one Odds API game_id must not satisfy the
+        # date+token check against more than one distinct Polymarket slug
+        # for the same matchup, and vice versa. Mirrors
+        # test_matcher.TestFindCandidatePairs.test_one_kalshi_ticker_matching_two_polymarket_listings_is_dropped
+        # for the Kalshi mapper — both now share bot.matching.matcher._drop_ambiguous.
+        pm_markets = [
+            {
+                "slug": "aec-nba-lal-bos-2026-01-10",
+                "question": "Lakers vs. Celtics",
+                "description": "",
+                "gameStartTime": "2026-01-10T23:00:00Z",
+                "marketSides": [
+                    {"long": True, "team": {"name": "Los Angeles Lakers"}},
+                    {"long": False, "team": {"name": "Boston Celtics"}},
+                ],
+            },
+            {
+                # Same matchup, second game of a back-to-back series, close
+                # enough with date_tolerance_days that both PM listings are
+                # within tolerance of the one Odds API game below.
+                "slug": "aec-nba-lal-bos-2026-01-11",
+                "question": "Lakers vs. Celtics",
+                "description": "",
+                "gameStartTime": "2026-01-11T23:00:00Z",
+                "marketSides": [
+                    {"long": True, "team": {"name": "Los Angeles Lakers"}},
+                    {"long": False, "team": {"name": "Boston Celtics"}},
+                ],
+            },
+        ]
+        odds_games = [
+            {
+                "id": "game-lal-bos-series",
+                "sport_key": "basketball_nba",
+                "home_team": "Los Angeles Lakers",
+                "away_team": "Boston Celtics",
+                "commence_time": "2026-01-10T23:30:00Z",
+            },
+        ]
+        proposals = find_odds_api_pairs(pm_markets, odds_games, similarity_threshold=0.5, date_tolerance_days=1)
+        self.assertEqual(proposals, [])
+
 
 class TestStoreOddsPairs(unittest.TestCase):
     def setUp(self):
