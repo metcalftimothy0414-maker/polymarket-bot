@@ -1,10 +1,39 @@
 {
-  "generated_at": "2026-08-10T03:10:01.935833+00:00",
+  "generated_at": "2026-08-10T03:11:34.078616+00:00",
   "mode": "PAPER",
   "feed_health": {
-    "last_heartbeat_at": "2026-08-10T03:06:25.410931+00:00",
-    "heartbeat_age_seconds": 216.525199,
+    "last_heartbeat_at": "2026-08-10T03:11:25.449562+00:00",
+    "heartbeat_age_seconds": 8.62971,
     "runner_alive": true
+  },
+  "feed_statuses": {
+    "polymarket": {
+      "status": "IDLE",
+      "last_success_at": null,
+      "last_error_at": null,
+      "last_error_message": null,
+      "last_success_age_seconds": null
+    },
+    "kalshi": {
+      "status": "IDLE",
+      "last_success_at": null,
+      "last_error_at": null,
+      "last_error_message": null,
+      "last_success_age_seconds": null
+    },
+    "odds_api": {
+      "status": "IDLE",
+      "last_success_at": null,
+      "last_error_at": null,
+      "last_error_message": null,
+      "last_success_age_seconds": null
+    }
+  },
+  "odds_api_credits": {
+    "credits_remaining": null,
+    "credits_used": null,
+    "last_observed_at": null,
+    "low_credits_alert": false
   },
   "pair_counts": {
     "kalshi_pairs_total": 0,
