@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-10T03:20:48.267743+00:00",
+  "generated_at": "2026-08-10T03:22:20.522508+00:00",
   "mode": "PAPER",
   "feed_health": {
-    "last_heartbeat_at": "2026-08-10T03:16:25.459875+00:00",
-    "heartbeat_age_seconds": 262.808311,
+    "last_heartbeat_at": "2026-08-10T03:21:25.526872+00:00",
+    "heartbeat_age_seconds": 54.996002,
     "runner_alive": true
   },
   "feed_statuses": {
@@ -57,7 +57,9 @@
       "kill_reasons": [
         "insufficient data (0/100+ opportunities needed)"
       ]
-    },
+    }
+  },
+  "reference_signals": {
     "sportsbook_divergence": {
       "strategy_id": "sportsbook_divergence",
       "opportunities_detected": 0,
@@ -90,6 +92,7 @@
   },
   "markets_discovered": 13147,
   "recent_opportunities": [],
+  "recent_reference_signals": [],
   "recent_pair_evaluations": [],
   "recent_trades": [],
   "recent_pair_positions": [],
