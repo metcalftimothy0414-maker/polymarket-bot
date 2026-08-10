@@ -1,18 +1,18 @@
 {
-  "generated_at": "2026-08-10T21:40:35.433419+00:00",
+  "generated_at": "2026-08-10T21:45:19.611282+00:00",
   "mode": "PAPER",
   "feed_health": {
-    "last_heartbeat_at": "2026-08-10T21:39:12.381188+00:00",
-    "heartbeat_age_seconds": 83.052783,
+    "last_heartbeat_at": "2026-08-10T21:44:38.992111+00:00",
+    "heartbeat_age_seconds": 40.619611,
     "runner_alive": true
   },
   "feed_statuses": {
     "polymarket": {
       "status": "IDLE",
-      "last_success_at": "2026-08-10T18:40:46.872493+00:00",
-      "last_error_at": "2026-08-10T18:40:45.225165+00:00",
+      "last_success_at": "2026-08-10T21:44:42.643820+00:00",
+      "last_error_at": "2026-08-10T21:44:41.385354+00:00",
       "last_error_message": null,
-      "last_success_age_seconds": 10788.561645
+      "last_success_age_seconds": 36.967945
     },
     "kalshi": {
       "status": "IDLE",
