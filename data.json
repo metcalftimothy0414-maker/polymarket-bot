@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-10T01:49:42.900574+00:00",
+  "generated_at": "2026-08-10T01:51:15.030726+00:00",
   "mode": "PAPER",
   "feed_health": {
     "last_heartbeat_at": "2026-08-10T01:47:27.542770+00:00",
-    "heartbeat_age_seconds": 135.358037,
+    "heartbeat_age_seconds": 227.488424,
     "runner_alive": true
   },
   "pair_counts": {
