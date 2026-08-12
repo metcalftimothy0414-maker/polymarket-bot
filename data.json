@@ -1,18 +1,18 @@
 {
-  "generated_at": "2026-08-12T00:20:06.786372+00:00",
+  "generated_at": "2026-08-12T00:21:51.401623+00:00",
   "mode": "PAPER",
   "feed_health": {
-    "last_heartbeat_at": "2026-08-12T00:15:21.495375+00:00",
-    "heartbeat_age_seconds": 285.292378,
+    "last_heartbeat_at": "2026-08-12T00:20:21.495633+00:00",
+    "heartbeat_age_seconds": 89.90742,
     "runner_alive": true
   },
   "feed_statuses": {
     "polymarket": {
       "status": "IDLE",
-      "last_success_at": "2026-08-11T23:29:46.456595+00:00",
-      "last_error_at": "2026-08-11T23:28:45.807379+00:00",
+      "last_success_at": "2026-08-12T00:20:24.087698+00:00",
+      "last_error_at": "2026-08-12T00:20:21.122225+00:00",
       "last_error_message": null,
-      "last_success_age_seconds": 3020.331337
+      "last_success_age_seconds": 87.315497
     },
     "kalshi": {
       "status": "IDLE",
@@ -98,6 +98,16 @@
   "recent_pair_positions": [],
   "recent_errors": [
     {
+      "ts": "2026-08-12T00:20:21.127191+00:00",
+      "component": "scan_loop",
+      "message": "scan loop iteration failed, see log"
+    },
+    {
+      "ts": "2026-08-12T00:20:15.923855+00:00",
+      "component": "scan_loop",
+      "message": "scan loop iteration failed, see log"
+    },
+    {
       "ts": "2026-08-12T00:19:58.945824+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
@@ -134,16 +144,6 @@
     },
     {
       "ts": "2026-08-11T23:28:54.650606+00:00",
-      "component": "scan_loop",
-      "message": "scan loop iteration failed, see log"
-    },
-    {
-      "ts": "2026-08-11T23:28:49.636884+00:00",
-      "component": "scan_loop",
-      "message": "scan loop iteration failed, see log"
-    },
-    {
-      "ts": "2026-08-11T23:28:44.607802+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     }
