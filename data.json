@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-13T21:26:01.007769+00:00",
+  "generated_at": "2026-08-13T21:27:33.034773+00:00",
   "mode": "PAPER",
   "feed_health": {
     "last_heartbeat_at": "2026-08-13T21:25:20.623616+00:00",
-    "heartbeat_age_seconds": 40.385144,
+    "heartbeat_age_seconds": 132.412649,
     "runner_alive": true
   },
   "feed_statuses": {
@@ -12,7 +12,7 @@
       "last_success_at": "2026-08-13T21:15:36.030965+00:00",
       "last_error_at": "2026-08-13T21:15:34.759431+00:00",
       "last_error_message": null,
-      "last_success_age_seconds": 624.977957
+      "last_success_age_seconds": 717.005637
     },
     "kalshi": {
       "status": "IDLE",
@@ -134,11 +134,6 @@
     },
     {
       "ts": "2026-08-12T23:24:01.395491+00:00",
-      "component": "scan_loop",
-      "message": "scan loop iteration failed, see log"
-    },
-    {
-      "ts": "2026-08-12T21:26:09.184171+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     }
