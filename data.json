@@ -1,18 +1,18 @@
 {
-  "generated_at": "2026-08-13T04:03:54.185336+00:00",
+  "generated_at": "2026-08-13T04:05:30.815163+00:00",
   "mode": "PAPER",
   "feed_health": {
-    "last_heartbeat_at": "2026-08-13T04:00:20.998888+00:00",
-    "heartbeat_age_seconds": 213.187723,
+    "last_heartbeat_at": "2026-08-13T04:05:20.996777+00:00",
+    "heartbeat_age_seconds": 9.819269,
     "runner_alive": true
   },
   "feed_statuses": {
     "polymarket": {
       "status": "IDLE",
-      "last_success_at": "2026-08-13T00:21:49.773719+00:00",
-      "last_error_at": "2026-08-13T00:21:48.541517+00:00",
+      "last_success_at": "2026-08-13T04:04:22.710294+00:00",
+      "last_error_at": "2026-08-13T04:04:21.197803+00:00",
       "last_error_message": null,
-      "last_success_age_seconds": 13324.413039
+      "last_success_age_seconds": 68.10591
     },
     "kalshi": {
       "status": "IDLE",
@@ -98,6 +98,11 @@
   "recent_pair_positions": [],
   "recent_errors": [
     {
+      "ts": "2026-08-13T04:03:57.833597+00:00",
+      "component": "scan_loop",
+      "message": "scan loop iteration failed, see log"
+    },
+    {
       "ts": "2026-08-13T03:07:07.277596+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
@@ -139,11 +144,6 @@
     },
     {
       "ts": "2026-08-12T07:43:22.430166+00:00",
-      "component": "scan_loop",
-      "message": "scan loop iteration failed, see log"
-    },
-    {
-      "ts": "2026-08-12T05:31:47.217725+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     }
