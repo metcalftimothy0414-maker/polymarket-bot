@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-13T11:37:57.191854+00:00",
+  "generated_at": "2026-08-13T11:39:29.183036+00:00",
   "mode": "PAPER",
   "feed_health": {
     "last_heartbeat_at": "2026-08-13T11:35:20.893001+00:00",
-    "heartbeat_age_seconds": 156.29967,
+    "heartbeat_age_seconds": 248.290409,
     "runner_alive": true
   },
   "feed_statuses": {
@@ -12,7 +12,7 @@
       "last_success_at": "2026-08-13T04:47:46.915097+00:00",
       "last_error_at": "2026-08-13T04:47:45.661600+00:00",
       "last_error_message": null,
-      "last_success_age_seconds": 24610.277762
+      "last_success_age_seconds": 24702.268356
     },
     "kalshi": {
       "status": "IDLE",
@@ -24,7 +24,7 @@
     "odds_api": {
       "status": "DEGRADED",
       "last_success_at": null,
-      "last_error_at": "2026-08-13T07:38:59.733247+00:00",
+      "last_error_at": "2026-08-13T11:39:00.116309+00:00",
       "last_error_message": "Client error '401 Unauthorized' for url 'https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=eda07f3113283f6018ad351008015e26&regions=us&markets=h2h&oddsFormat=decimal'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401",
       "last_success_age_seconds": null
     }
@@ -32,7 +32,7 @@
   "odds_api_credits": {
     "credits_remaining": 0,
     "credits_used": 500,
-    "last_observed_at": "2026-08-13T07:38:59.731501+00:00",
+    "last_observed_at": "2026-08-13T11:39:00.113547+00:00",
     "low_credits_alert": true
   },
   "pair_counts": {
