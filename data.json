@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-14T18:33:27.978688+00:00",
+  "generated_at": "2026-08-14T18:34:59.985010+00:00",
   "mode": "PAPER",
   "feed_health": {
     "last_heartbeat_at": "2026-08-14T18:30:20.360247+00:00",
-    "heartbeat_age_seconds": 187.620105,
+    "heartbeat_age_seconds": 279.626796,
     "runner_alive": true
   },
   "feed_statuses": {
@@ -12,7 +12,7 @@
       "last_success_at": "2026-08-14T16:50:41.887158+00:00",
       "last_error_at": "2026-08-14T16:50:40.669526+00:00",
       "last_error_message": null,
-      "last_success_age_seconds": 6166.093517
+      "last_success_age_seconds": 6258.100057
     },
     "kalshi": {
       "status": "IDLE",
