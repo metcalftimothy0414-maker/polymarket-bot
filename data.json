@@ -1,18 +1,18 @@
 {
-  "generated_at": "2026-08-16T15:38:45.529458+00:00",
+  "generated_at": "2026-08-16T15:40:17.447090+00:00",
   "mode": "PAPER",
   "feed_health": {
     "last_heartbeat_at": "2026-08-16T15:35:18.993796+00:00",
-    "heartbeat_age_seconds": 206.536622,
+    "heartbeat_age_seconds": 298.454432,
     "runner_alive": true
   },
   "feed_statuses": {
     "polymarket": {
       "status": "DEGRADED",
       "last_success_at": "2026-08-15T01:00:25.520211+00:00",
-      "last_error_at": "2026-08-16T15:38:06.453803+00:00",
+      "last_error_at": "2026-08-16T15:40:06.685810+00:00",
       "last_error_message": "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1016)",
-      "last_success_age_seconds": 139100.010349
+      "last_success_age_seconds": 139191.928152
     },
     "kalshi": {
       "status": "IDLE",
@@ -24,7 +24,7 @@
     "odds_api": {
       "status": "DEGRADED",
       "last_success_at": null,
-      "last_error_at": "2026-08-16T11:39:02.914629+00:00",
+      "last_error_at": "2026-08-16T15:39:02.990400+00:00",
       "last_error_message": "Client error '401 Unauthorized' for url 'https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=eda07f3113283f6018ad351008015e26&regions=us&markets=h2h&oddsFormat=decimal'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401",
       "last_success_age_seconds": null
     }
@@ -32,7 +32,7 @@
   "odds_api_credits": {
     "credits_remaining": 0,
     "credits_used": 500,
-    "last_observed_at": "2026-08-16T11:39:02.911855+00:00",
+    "last_observed_at": "2026-08-16T15:39:02.987190+00:00",
     "low_credits_alert": true
   },
   "pair_counts": {
@@ -98,52 +98,52 @@
   "recent_pair_positions": [],
   "recent_errors": [
     {
-      "ts": "2026-08-16T15:38:41.837875+00:00",
+      "ts": "2026-08-16T15:40:13.359302+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-16T15:38:36.731891+00:00",
+      "ts": "2026-08-16T15:40:08.280939+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-16T15:38:31.636696+00:00",
+      "ts": "2026-08-16T15:40:03.200203+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-16T15:38:26.564989+00:00",
+      "ts": "2026-08-16T15:39:58.105490+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-16T15:38:21.486201+00:00",
+      "ts": "2026-08-16T15:39:53.027425+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-16T15:38:16.416691+00:00",
+      "ts": "2026-08-16T15:39:47.940290+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-16T15:38:11.345097+00:00",
+      "ts": "2026-08-16T15:39:42.852469+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-16T15:38:06.260160+00:00",
+      "ts": "2026-08-16T15:39:37.779407+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-16T15:38:00.996069+00:00",
+      "ts": "2026-08-16T15:39:32.699871+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-16T15:37:55.887231+00:00",
+      "ts": "2026-08-16T15:39:27.631420+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     }
