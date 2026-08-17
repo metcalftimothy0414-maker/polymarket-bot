@@ -1,18 +1,18 @@
 {
-  "generated_at": "2026-08-17T05:02:31.747882+00:00",
+  "generated_at": "2026-08-17T05:04:03.495573+00:00",
   "mode": "PAPER",
   "feed_health": {
     "last_heartbeat_at": "2026-08-17T05:00:18.521189+00:00",
-    "heartbeat_age_seconds": 133.227778,
+    "heartbeat_age_seconds": 224.975457,
     "runner_alive": true
   },
   "feed_statuses": {
     "polymarket": {
       "status": "DEGRADED",
       "last_success_at": "2026-08-15T01:00:25.520211+00:00",
-      "last_error_at": "2026-08-17T05:01:39.964526+00:00",
+      "last_error_at": "2026-08-17T05:03:40.179565+00:00",
       "last_error_message": "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1016)",
-      "last_success_age_seconds": 187326.228952
+      "last_success_age_seconds": 187417.976609
     },
     "kalshi": {
       "status": "IDLE",
@@ -98,52 +98,52 @@
   "recent_pair_positions": [],
   "recent_errors": [
     {
-      "ts": "2026-08-17T05:02:29.623053+00:00",
+      "ts": "2026-08-17T05:04:01.019333+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-17T05:02:24.528016+00:00",
+      "ts": "2026-08-17T05:03:55.937178+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-17T05:02:19.444933+00:00",
+      "ts": "2026-08-17T05:03:50.863908+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-17T05:02:14.358016+00:00",
+      "ts": "2026-08-17T05:03:45.775178+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-17T05:02:09.281088+00:00",
+      "ts": "2026-08-17T05:03:40.694601+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-17T05:02:04.196889+00:00",
+      "ts": "2026-08-17T05:03:35.619381+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-17T05:01:59.129987+00:00",
+      "ts": "2026-08-17T05:03:30.541609+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-17T05:01:54.060231+00:00",
+      "ts": "2026-08-17T05:03:25.457313+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-17T05:01:48.980159+00:00",
+      "ts": "2026-08-17T05:03:20.380537+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     },
     {
-      "ts": "2026-08-17T05:01:43.878916+00:00",
+      "ts": "2026-08-17T05:03:15.316866+00:00",
       "component": "scan_loop",
       "message": "scan loop iteration failed, see log"
     }
